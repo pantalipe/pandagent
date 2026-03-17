@@ -1,0 +1,26 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Backups and old versions
+*.old
+*.old2
+*.bak
+
+# Memory files with conversation history
+memory.txt
+memory copy.txt
+memory copy 2.txt
+
+# Project map (auto-generated on index)
+project_map.txt
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store

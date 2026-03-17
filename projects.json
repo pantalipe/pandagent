@@ -1,0 +1,155 @@
+{
+  "projects": {
+
+    "pp": {
+      "path": "C:/Windows.old/Users/panta/Desktop/pp",
+      "description": "Contrato PandaPoints na BSC — versão principal com 17 contratos Solidity, usando Hardhat",
+      "stack": ["solidity", "hardhat", "bsc", "web3"],
+      "type": "contract",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset", "git rebase"]
+    },
+
+    "pp2": {
+      "path": "C:/Windows.old/Users/panta/Desktop/pp2",
+      "description": "Contrato PandaPoints na BSC — versão alternativa usando Truffle",
+      "stack": ["solidity", "truffle", "bsc"],
+      "type": "contract",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset", "git rebase"]
+    },
+
+    "ppsitefinal": {
+      "path": "C:/Windows.old/Users/panta/Desktop/ppsitefinal",
+      "description": "Site oficial do PandaPoints — versão de produção em Next.js",
+      "stack": ["next.js", "react", "ethers.js", "tailwind"],
+      "type": "frontend",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset", "git rebase"]
+    },
+
+    "ppsitev2": {
+      "path": "C:/Windows.old/Users/panta/Desktop/ppsitev2",
+      "description": "Site PandaPoints — versão 2 (histórico de evolução)",
+      "stack": ["next.js", "react", "ethers.js"],
+      "type": "frontend",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset", "git rebase"]
+    },
+
+    "ppsite": {
+      "path": "C:/Windows.old/Users/panta/Desktop/ppsite",
+      "description": "Site PandaPoints — versão inicial (histórico de evolução)",
+      "stack": ["next.js", "react"],
+      "type": "frontend",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset", "git rebase"]
+    },
+
+    "tt3": {
+      "path": "C:/Windows.old/Users/panta/Desktop/tt3",
+      "description": "Site PandaPoints — versão de testes e experimentação",
+      "stack": ["next.js", "react", "solidity"],
+      "type": "sandbox",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    },
+
+    "gethtest": {
+      "path": "C:/Windows.old/Users/panta/PycharmProjects/gethtest",
+      "description": "Ambiente de teste com blockchain privada usando Geth — Python + Solidity",
+      "stack": ["python", "solidity", "geth", "web3.py"],
+      "type": "contract",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset", "git rebase"]
+    },
+
+    "richbrutality": {
+      "path": "C:/Users/panta/richbrutality",
+      "description": "Gerador de chaves privadas Bitcoin em loop com verificação de saldo",
+      "stack": ["python", "bitcoin"],
+      "type": "tool",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    },
+
+    "live": {
+      "path": "C:/Windows.old/Users/panta/Desktop/desk/live",
+      "description": "Interface visual com música para exibir preços de criptomoedas em live 24h",
+      "stack": ["python", "crypto-api"],
+      "type": "tool",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    },
+
+    "poster2": {
+      "path": "C:/Windows.old/Users/panta/Desktop/poster2",
+      "description": "Automação completa de criação de vídeos e postagem em redes sociais",
+      "stack": ["python", "ffmpeg", "social-api"],
+      "type": "automation",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    },
+
+    "poster": {
+      "path": "C:/Windows.old/Users/panta/Desktop/poster",
+      "description": "Predecessor do poster2 — versão anterior da automação de vídeos",
+      "stack": ["python", "ffmpeg"],
+      "type": "automation",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    },
+
+    "momak": {
+      "path": "C:/Windows.old/Users/panta/Desktop/momak",
+      "description": "Criador de vídeos programático",
+      "stack": ["python", "ffmpeg"],
+      "type": "automation",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    },
+
+    "imgen": {
+      "path": "C:/Windows.old/Users/panta/imgen",
+      "description": "Gerador de imagens usado como insumo para o pipeline de vídeo",
+      "stack": ["python", "pillow", "image-generation"],
+      "type": "automation",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    },
+
+    "rotman": {
+      "path": "C:/Windows.old/Users/panta/rotman",
+      "description": "Roteiro Manager — orquestra imgen + XTTS + momak + poster para gerar vídeos automaticamente",
+      "stack": ["python"],
+      "type": "automation",
+      "related": ["imgen", "xtts", "momak", "poster2"],
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    },
+
+    "xtts": {
+      "path": "C:/Windows.old/Users/panta/XTTS",
+      "description": "Síntese de voz neural (TTS) para narração dos vídeos",
+      "stack": ["python", "tts", "neural"],
+      "type": "automation",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    },
+
+    "spechtotext": {
+      "path": "C:/Windows.old/Users/panta/Desktop/spechtotext",
+      "description": "Extrator de texto de áudio (speech-to-text)",
+      "stack": ["python", "speech-recognition"],
+      "type": "tool",
+      "git_remote": "",
+      "require_confirmation": ["git push", "git reset"]
+    }
+
+  },
+
+  "settings": {
+    "default_confirmation": ["git push", "git reset", "git rebase", "rmdir", "rm -rf"],
+    "workspace": "C:/Users/panta/panda_workspace"
+  }
+}
