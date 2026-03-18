@@ -289,3 +289,56 @@ class Indexer:
             "extensoes": list({Path(p).suffix for p in self._file_index}),
             "tamanho_total": sum(len(c) for c in self._file_index.values()),
         }
+
+    def summarize(self, max_chars: int = 8000) -> str:
+        """
+        Monta um contexto amplo com o máximo de arquivos possível
+        para o comando 'resumir'. Prioriza arquivos menores e mais
+        centrais (arquivos na raiz antes de subpastas).
+        """
+        if not self._file_index:
+            return "⚠️  Projeto não indexado. Rode: indexar"
+
+        # Ordena: arquivos na raiz primeiro, depois por tamanho crescente
+        sorted_files = sorted(
+            self._file_index.items(),
+            key=lambda x: (x[0].count("/") + x[0].count("\\"), len(x[1]))
+        )
+
+        parts = [
+            f"# Contexto completo do projeto para resumo",
+            f"# {len(self._file_index)} arquivos indexados",
+            "",
+        ]
+
+        # Sempre inclui o mapa completo
+        if self.map_file.exists():
+            parts.append("## Estrutura do projeto")
+            parts.append(self.map_file.read_text(encoding="utf-8"))
+            parts.append("")
+
+        parts.append("## Arquivos de código")
+        total_chars = sum(len(p) for p in parts)
+
+        included = 0
+        skipped = []
+
+        for rel_path, content in sorted_files:
+            # Limita cada arquivo a 1500 chars para caber mais arquivos
+            snippet = content[:1500]
+            block = f"### {rel_path}\n```\n{snippet}\n```\n"
+
+            if total_chars + len(block) > max_chars:
+                skipped.append(rel_path)
+                continue
+
+            parts.append(block)
+            total_chars += len(block)
+            included += 1
+
+        if skipped:
+            parts.append(f"\n# {len(skipped)} arquivo(s) omitido(s) por limite de contexto:")
+            for p in skipped:
+                parts.append(f"#   {p}")
+
+        return "\n".join(parts)

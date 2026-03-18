@@ -47,7 +47,7 @@ GENERAL_KEYWORDS = [
 
 class Brain:
     GENERAL_MODEL = "phi3"
-    CODER_MODEL   = "phi3"#"deepseek-coder:6.7b-instruct-q4_K_M"
+    CODER_MODEL   = "deepseek-coder:6.7b-instruct-q4_K_M"
 
     # Prompts de sistema por modelo
     SYSTEM_PROMPTS = {
@@ -55,7 +55,7 @@ class Brain:
 Foco: Web3, DeFi, smart contracts, projetos Python e estratégia de desenvolvimento.
 Seja direto, objetivo e use português.
 Quando a tarefa envolver código específico, diga: "Vou passar para o módulo de código."
-Para ações no sistema, use JSON: {"action": "run_command", "command": "...", "reason": "..."}
+IMPORTANTE: Responda SEMPRE em texto corrido. NUNCA use JSON, NUNCA use blocos de ação.
 """,
         "coder": """Você é o PandaAgent modo código. Especialista em Python, Solidity, Web3, JavaScript.
 

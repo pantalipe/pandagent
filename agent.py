@@ -134,6 +134,7 @@ def main():
 
     print(f"\n   Comandos especiais:")
     print(f"   'indexar'    → lê e indexa o projeto atual")
+    print(f"   'resumir'    → explica o que o projeto faz (requer indexar)")
     print(f"   'mapa'       → mostra estrutura indexada")
     print(f"   'trocar'     → seleciona outro projeto")
     print(f"   'historico'  → mostra log de conversas")
@@ -176,6 +177,28 @@ def main():
                 indexer.index()
                 stats = indexer.stats()
                 print(f"   📊 {stats['arquivos']} arquivos | extensões: {', '.join(stats['extensoes'])}")
+                continue
+
+            if user_input.lower() == "resumir":
+                if not project_name:
+                    print("Nenhum projeto selecionado. Use 'trocar' para selecionar.")
+                    continue
+                if not indexer._file_index:
+                    print("Projeto não indexado. Rode 'indexar' primeiro.")
+                    continue
+                print(f"\n🔍 Gerando resumo de '{project_name}'...")
+                context = indexer.summarize()
+                prompt = (
+                    f"Analise o projeto '{project_name}' com base nos arquivos abaixo "
+                    f"e explique em texto: o que ele faz, como funciona, quais são os "
+                    f"arquivos principais e o que cada um faz. "
+                    f"Responda APENAS em texto corrido, sem JSON, sem comandos.\n\n{context}"
+                )
+                # Força modelo general — resumo é sempre explicação, não código
+                response = brain._call(brain.GENERAL_MODEL, "general", prompt, memory.get_history())
+                short_model = brain.GENERAL_MODEL.split(":")[0]
+                print(f"\nAgente [{short_model}]: {response}\n")
+                memory.save(f"resumir {project_name}", response, short_model)
                 continue
 
             if user_input.lower() == "mapa":
