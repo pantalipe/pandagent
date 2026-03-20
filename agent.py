@@ -248,7 +248,7 @@ def main():
             model_used, response = brain.think(enriched_input, memory.get_history())
 
             # ── Executor age ────────────────────────
-            action_result = executor.handle(response)
+            action_result = executor.handle_sequence(response)
 
             if action_result:
                 final_response = brain.interpret_result(

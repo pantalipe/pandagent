@@ -5,6 +5,10 @@ Ações suportadas:
   run_command  → executa comando de terminal
   create_file  → cria arquivo no workspace
   read_file    → lê conteúdo de arquivo
+
+Modos:
+  handle()          → executa primeira ação encontrada (comportamento original)
+  handle_sequence() → executa todas as ações encontradas em ordem
 """
 
 import json
@@ -40,48 +44,128 @@ class Executor:
         return answer == "s"
 
     # ─────────────────────────────────────────────
-    # EXTRAÇÃO DE AÇÃO DO JSON NA RESPOSTA
+    # EXTRAÇÃO DE AÇÕES DO JSON NA RESPOSTA
     # ─────────────────────────────────────────────
     def extract_action(self, response: str) -> dict | None:
         """Extrai o primeiro JSON de ação encontrado na resposta."""
-        patterns = [
-            r'```json\s*(\{.*?\})\s*```',        # bloco ```json ... ```
-            r'```\s*(\{.*?\})\s*```',             # bloco ``` ... ```
-            r'(\{[^{}]*"action"\s*:[^{}]*\})',    # JSON inline simples
-            r'(\{.*?"action".*?\})',               # JSON multiline
-        ]
+        actions = self.extract_actions(response)
+        return actions[0] if actions else None
 
+    def extract_actions(self, response: str) -> list[dict]:
+        """
+        Extrai TODAS as ações JSON encontradas na resposta, em ordem.
+        Suporta lista JSON e múltiplos blocos separados.
+        """
+        found = []
+
+        # 1. Tenta lista JSON: [{"action":...}, {"action":...}]
+        list_patterns = [
+            r'```json\s*(\[.*?\])\s*```',
+            r'```\s*(\[.*?\])\s*```',
+            r'(\[\s*\{.*?"action".*?\}\s*\])',
+        ]
+        for pattern in list_patterns:
+            matches = re.findall(pattern, response, re.DOTALL)
+            for raw in matches:
+                try:
+                    data = json.loads(raw)
+                    if isinstance(data, list):
+                        valid = [d for d in data if isinstance(d, dict) and "action" in d]
+                        if valid:
+                            return valid  # retorna a lista inteira
+                except Exception:
+                    continue
+
+        # 2. Tenta JSONs individuais em sequência
+        patterns = [
+            r'```json\s*(\{.*?\})\s*```',
+            r'```\s*(\{.*?\})\s*```',
+            r'(\{[^{}]*"action"\s*:[^{}]*\})',
+            r'(\{.*?"action".*?\})',
+        ]
         for pattern in patterns:
             matches = re.findall(pattern, response, re.DOTALL)
             for raw in matches:
                 raw = raw.strip()
                 try:
                     data = json.loads(raw)
-                    if "action" in data:
-                        return data
+                    if "action" in data and data not in found:
+                        found.append(data)
                 except json.JSONDecodeError:
-                    # Tenta consertar escapes comuns
                     try:
                         fixed = raw.replace('\n', '\\n').replace('\t', '\\t')
                         data = json.loads(fixed)
-                        if "action" in data:
-                            return data
+                        if "action" in data and data not in found:
+                            found.append(data)
                     except Exception:
                         continue
-        return None
+
+        return found
 
     # ─────────────────────────────────────────────
-    # DISPATCHER
+    # DISPATCHER — ação única (comportamento original)
     # ─────────────────────────────────────────────
     def handle(self, response: str) -> str | None:
         """
         Verifica se a resposta contém uma ação e a executa.
-        Retorna o resultado da ação ou None se não há ação.
+        Retorna o resultado ou None se não há ação.
         """
         action = self.extract_action(response)
         if not action:
             return None
+        return self._dispatch(action)
 
+    # ─────────────────────────────────────────────
+    # DISPATCHER — sequência de ações
+    # ─────────────────────────────────────────────
+    def handle_sequence(self, response: str) -> str | None:
+        """
+        Extrai e executa TODAS as ações em ordem.
+        Para na primeira falha se stop_on_error=True.
+        Retorna string com todos os resultados concatenados.
+        """
+        actions = self.extract_actions(response)
+        if not actions:
+            return None
+
+        total = len(actions)
+        if total == 1:
+            return self._dispatch(actions[0])
+
+        print(f"\n📋 Sequência de {total} ações detectada")
+        for i, action in enumerate(actions, 1):
+            print(f"   [{i}/{total}] {action.get('action')} — {action.get('reason', '')}")
+
+        print()
+        results = []
+        for i, action in enumerate(actions, 1):
+            print(f"\n── Ação {i}/{total} ──────────────────────")
+            result = self._dispatch(action)
+
+            if result is None:
+                result = "Ação desconhecida"
+
+            results.append(f"[{i}/{total}] {action.get('action')}: {result}")
+
+            # Se o comando foi cancelado pelo usuário, para a sequência
+            if result.startswith("Comando cancelado"):
+                results.append("Sequência interrompida pelo usuário.")
+                break
+
+            # Se houve erro de execução, pergunta se continua
+            if "Erro" in result or "Exit code: 1" in result:
+                print(f"\n⚠️  Erro na ação {i}. Continuar sequência? (s/n): ", end="")
+                answer = input().strip().lower()
+                if answer != "s":
+                    results.append("Sequência interrompida após erro.")
+                    break
+
+        return "\n\n".join(results)
+
+    # ─────────────────────────────────────────────
+    # DISPATCH INDIVIDUAL
+    # ─────────────────────────────────────────────
+    def _dispatch(self, action: dict) -> str:
         action_type = action.get("action", "")
         reason      = action.get("reason", "sem descrição")
 
@@ -89,13 +173,10 @@ class Executor:
 
         if action_type == "run_command":
             return self._run_command(action)
-
         elif action_type == "create_file":
             return self._create_file(action)
-
         elif action_type == "read_file":
             return self._read_file(action)
-
         else:
             return f"Ação desconhecida: '{action_type}'"
 
@@ -107,7 +188,6 @@ class Executor:
         if not cmd:
             return "Erro: campo 'command' vazio."
 
-        # Verifica se precisa de confirmação
         if self._requires_confirmation(cmd):
             if not self._ask_confirmation(cmd):
                 return f"Comando cancelado pelo usuário: {cmd}"
@@ -130,7 +210,9 @@ class Executor:
                 output.append(f"stdout:\n{result.stdout.strip()}")
             if result.stderr.strip():
                 output.append(f"stderr:\n{result.stderr.strip()}")
-            return "\n".join(output)
+            result_str = "\n".join(output)
+            print(f"\n{result_str}")   # ← exibe no terminal
+            return result_str
 
         except subprocess.TimeoutExpired:
             return f"Timeout: '{cmd}' demorou mais de 60s."
