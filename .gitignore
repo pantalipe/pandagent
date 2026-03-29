@@ -14,6 +14,7 @@ __pycache__/
 
 # Memory files with conversation history
 memory.txt
+memory_*.txt
 memory copy.txt
 memory copy 2.txt
 

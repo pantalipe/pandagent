@@ -71,6 +71,21 @@ class Memory:
         print("\n".join(tail))
         print("=" * 60 + "\n")
 
+    def archive_log(self) -> str:
+        """
+        Arquiva o memory.txt atual renomeando para memory_YYYY-MM-DD_HHMMSS.txt
+        e cria um novo memory.txt vazio.
+        Retorna o nome do arquivo gerado.
+        """
+        if not MEMORY_FILE.exists() or MEMORY_FILE.stat().st_size == 0:
+            return ""
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        archive_name = MEMORY_FILE.parent / f"memory_{timestamp}.txt"
+        MEMORY_FILE.rename(archive_name)
+        MEMORY_FILE.touch()
+        return archive_name.name
+
     def load_last_session(self, n: int = 10) -> list[dict]:
         """
         Lê as últimas N entradas do arquivo e retorna como lista.

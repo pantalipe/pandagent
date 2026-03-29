@@ -139,6 +139,7 @@ def main():
     print(f"   'trocar'     → seleciona outro projeto")
     print(f"   'historico'  → mostra log de conversas")
     print(f"   'limpar'     → reseta histórico da sessão")
+    print(f"   'limpar_log' → arquiva memory.txt e começa log novo")
     print(f"   'sair'       → encerra\n")
 
     while True:
@@ -212,6 +213,15 @@ def main():
             if user_input.lower() == "limpar":
                 memory.clear_session()
                 print("Histórico de sessão limpo.")
+                continue
+
+            if user_input.lower() == "limpar_log":
+                archived = memory.archive_log()
+                if archived:
+                    memory.clear_session()
+                    print(f"✅ Log arquivado como '{archived}' e sessão limpa.")
+                else:
+                    print("   memory.txt já está vazio, nada a arquivar.")
                 continue
 
             # ── Contexto do projeto ─────────────────
