@@ -62,9 +62,7 @@ panda_agent/
 
 ## Requirements
 
-```bash
-pip install requests
-```
+No external dependencies. Uses Python standard library only.
 
 [Ollama](https://ollama.com) must be running with at least one model pulled:
 
@@ -91,6 +89,7 @@ Select a project from the menu or choose general mode. Type `indexar` to index t
 | `trocar` | Switch to another project |
 | `historico` | Show conversation log |
 | `limpar` | Clear session history |
+| `limpar_log` | Archive `memory.txt` with timestamp and start fresh |
 | `sair` | Exit |
 
 ## Hardware

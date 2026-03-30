@@ -6,8 +6,10 @@ Lógica de decisão:
   - deepseek-coder     → geração de código, debug, arquivos
 """
 
+import json
 import re
-import requests
+import urllib.error
+import urllib.request
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
@@ -100,8 +102,9 @@ IMPORTANTE:
     def check_ollama(self) -> bool:
         """Verifica se o Ollama está rodando."""
         try:
-            r = requests.get(OLLAMA_TAGS_URL, timeout=3)
-            return r.status_code == 200
+            req = urllib.request.Request(OLLAMA_TAGS_URL, method="GET")
+            with urllib.request.urlopen(req, timeout=None) as resp:
+                return resp.status == 200
         except Exception:
             return False
 
@@ -144,13 +147,17 @@ IMPORTANTE:
         }
 
         try:
-            r = requests.post(OLLAMA_URL, json=payload)#), timeout=180)
-            r.raise_for_status()
-            return r.json().get("response", "").strip()
-        except requests.exceptions.ConnectionError:
-            return "ERRO: Ollama não está rodando. Execute: ollama serve"
-        #except requests.exceptions.Timeout:
-        #    return "ERRO: Timeout — modelo demorou mais de 3min. Tente um modelo menor."
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                OLLAMA_URL,
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req) as resp:
+                return json.loads(resp.read().decode("utf-8")).get("response", "").strip()
+        except urllib.error.URLError as e:
+            return f"ERRO: Ollama não está rodando. Execute: ollama serve ({e.reason})"
         except Exception as e:
             return f"ERRO inesperado: {e}"
 
