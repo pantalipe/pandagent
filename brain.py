@@ -1,9 +1,9 @@
 """
-brain.py — Roteamento de modelos e chamadas ao Ollama
+brain.py — Model routing and Ollama calls
 
-Lógica de decisão:
-  - phi3               → planejamento, análise, perguntas gerais
-  - deepseek-coder     → geração de código, debug, arquivos
+Routing logic:
+  - phi3               → planning, analysis, general questions
+  - deepseek-coder     → code generation, debugging, file creation
 """
 
 import json
@@ -16,34 +16,30 @@ OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
 
 
 # ─────────────────────────────────────────────
-# Palavras-chave que indicam tarefa de CÓDIGO
+# Keywords indicating a CODE task
 # ─────────────────────────────────────────────
 CODE_KEYWORDS = [
-    # linguagens / ferramentas
+    # languages / tools
     "python", "solidity", "javascript", "typescript", "html", "css",
     "bash", "shell", "script", "sql", "json", "yaml", "toml",
-    # ações de código
-    "código", "code", "função", "function", "classe", "class",
-    "implementar", "implement", "criar arquivo", "create file",
-    "contrato", "contract", "deploy", "compile", "compilar",
-    "bug", "erro", "error", "fix", "corrigir", "refatorar", "refactor",
-    "instalar", "install", "npm", "pip", "import", "export",
-    "api", "endpoint", "rota", "route", "web3", "abi", "erc",
+    # code actions
+    "code", "function", "class", "implement", "create file",
+    "contract", "deploy", "compile", "bug", "error", "fix", "refactor",
+    "install", "npm", "pip", "import", "export",
+    "api", "endpoint", "route", "web3", "abi", "erc",
     "next.js", "react", "hardhat", "foundry", "truffle",
-    # comandos de terminal
-    "execute", "executar", "rodar", "run", "comando",
+    # terminal commands
+    "execute", "run", "command",
 ]
 
 # ─────────────────────────────────────────────
-# Palavras-chave que indicam tarefa de PLANEJAMENTO
+# Keywords indicating a PLANNING task
 # ─────────────────────────────────────────────
 GENERAL_KEYWORDS = [
-    "planejar", "plan", "estratégia", "strategy", "arquitetura",
-    "estrutura", "organizar", "organize", "como funciona", "explain",
-    "explique", "resumir", "resume", "analisar", "analyze",
-    "decisão", "decision", "comparar", "compare", "melhor forma",
-    "roadmap", "etapas", "passos", "steps", "o que", "quando",
-    "por que", "porque", "diferença", "diferenças",
+    "plan", "strategy", "architecture", "structure", "organize",
+    "how does", "explain", "summarize", "analyze", "decision",
+    "compare", "best way", "roadmap", "steps", "what", "when",
+    "why", "difference",
 ]
 
 
@@ -51,56 +47,55 @@ class Brain:
     GENERAL_MODEL = "phi3"
     CODER_MODEL   = "deepseek-coder:6.7b-instruct-q4_K_M"
 
-    # Prompts de sistema por modelo
+    # System prompts per model
     SYSTEM_PROMPTS = {
-        "general": """Você é o PandaAgent, assistente especializado em planejamento e arquitetura de software.
-Foco: Web3, DeFi, smart contracts, projetos Python e estratégia de desenvolvimento.
-Seja direto, objetivo e use português.
-Quando a tarefa envolver código específico, diga: "Vou passar para o módulo de código."
-IMPORTANTE: Responda SEMPRE em texto corrido. NUNCA use JSON, NUNCA use blocos de ação.
+        "general": """You are PandaAgent, an assistant specialized in software planning and architecture.
+Focus: Web3, DeFi, smart contracts, Python projects, and development strategy.
+Be direct, objective, and respond in English.
+When the task involves specific code, say: "I'll hand this off to the code module."
+IMPORTANT: Always respond in plain text. NEVER use JSON, NEVER use action blocks.
 """,
-        "coder": """Você é o PandaAgent modo código. Especialista em Python, Solidity, Web3, JavaScript.
+        "coder": """You are PandaAgent in code mode. Expert in Python, Solidity, Web3, JavaScript.
 
-REGRA CRÍTICA: Quando o usuário pedir para CRIAR um arquivo, você DEVE responder APENAS com JSON de ação. Nada antes, nada depois.
+CRITICAL RULE: When the user asks to CREATE a file, you MUST respond ONLY with an action JSON. Nothing before, nothing after.
 
-Para UMA ação:
-{"action": "create_file", "path": "arquivo.py", "content": "conteúdo", "reason": "descrição"}
+For ONE action:
+{"action": "create_file", "path": "file.py", "content": "content here", "reason": "description"}
 
-Para MÚLTIPLAS ações em sequência, use uma lista JSON:
+For MULTIPLE sequential actions, use a JSON list:
 [
-  {"action": "run_command", "command": "copy C:/Downloads/rb.py C:/projeto/rb.py", "reason": "copiar arquivo"},
-  {"action": "run_command", "command": "python rb.py", "reason": "testar"},
+  {"action": "run_command", "command": "copy C:/Downloads/rb.py C:/project/rb.py", "reason": "copy file"},
+  {"action": "run_command", "command": "python rb.py", "reason": "test"},
   {"action": "run_command", "command": "git add . && git commit -m 'update'", "reason": "commit"},
   {"action": "run_command", "command": "git push", "reason": "push"}
 ]
 
-Ações disponíveis:
+Available actions:
 - create_file  → {"action": "create_file", "path": "...", "content": "...", "reason": "..."}
 - run_command  → {"action": "run_command", "command": "...", "reason": "..."}
 - read_file    → {"action": "read_file", "path": "...", "reason": "..."}
 
-IMPORTANTE:
-- Use lista JSON quando houver 2 ou mais ações a executar em ordem
-- Coloque o código COMPLETO dentro do campo "content"
-- Use \\n para quebras de linha dentro do JSON
-- Use português nos comentários do código
-- Só explique em texto quando o usuário fizer uma pergunta, não pedir criação
+IMPORTANT:
+- Use a JSON list when there are 2 or more actions to execute in sequence
+- Put the COMPLETE code inside the "content" field
+- Use \\n for line breaks inside JSON
+- Only explain in text when the user asks a question, not when requesting file creation
 """,
     }
 
     def set_project_context(self, name: str, description: str, stack: list[str]):
-        """Injeta contexto do projeto nos prompts do sistema."""
+        """Injects project context into system prompts."""
         ctx = (
-            f"\nPROJETO ATIVO: {name}\n"
-            f"Descrição: {description}\n"
+            f"\nACTIVE PROJECT: {name}\n"
+            f"Description: {description}\n"
             f"Stack: {', '.join(stack)}\n"
-            f"Mantenha todo código gerado compatível com essa stack.\n"
+            f"Keep all generated code compatible with this stack.\n"
         )
         for key in self.SYSTEM_PROMPTS:
             self.SYSTEM_PROMPTS[key] = self.SYSTEM_PROMPTS[key].rstrip() + ctx
 
     def check_ollama(self) -> bool:
-        """Verifica se o Ollama está rodando."""
+        """Checks if Ollama is running."""
         try:
             req = urllib.request.Request(OLLAMA_TAGS_URL, method="GET")
             with urllib.request.urlopen(req, timeout=None) as resp:
@@ -110,15 +105,15 @@ IMPORTANTE:
 
     def route(self, user_input: str) -> tuple[str, str]:
         """
-        Decide qual modelo usar com base no conteúdo da mensagem.
-        Retorna: (nome_modelo, tipo_prompt)
+        Decides which model to use based on message content.
+        Returns: (model_name, prompt_type)
         """
         text = user_input.lower()
 
         code_score    = sum(1 for kw in CODE_KEYWORDS    if kw in text)
         general_score = sum(1 for kw in GENERAL_KEYWORDS if kw in text)
 
-        # Se empate ou ambíguo, prefere coder (mais seguro para tarefas mistas)
+        # If tied or ambiguous, prefer coder (safer for mixed tasks)
         if code_score >= general_score:
             return self.CODER_MODEL, "coder"
         else:
@@ -127,13 +122,13 @@ IMPORTANTE:
 
 
     def _call(self, model: str, prompt_type: str, prompt: str, history: list) -> str:
-        """Faz a chamada ao Ollama e retorna a resposta."""
+        """Makes the Ollama API call and returns the response."""
         system = self.SYSTEM_PROMPTS[prompt_type]
 
         context = system + "\n\n"
         for turn in history[-4:]:
-            context += f"Usuário: {turn['user']}\nAgente: {turn['agent']}\n\n"
-        context += f"Usuário: {prompt}\nAgente:"
+            context += f"User: {turn['user']}\nAgent: {turn['agent']}\n\n"
+        context += f"User: {prompt}\nAgent:"
 
         payload = {
             "model": model,
@@ -157,20 +152,20 @@ IMPORTANTE:
             with urllib.request.urlopen(req) as resp:
                 return json.loads(resp.read().decode("utf-8")).get("response", "").strip()
         except urllib.error.URLError as e:
-            return f"ERRO: Ollama não está rodando. Execute: ollama serve ({e.reason})"
+            return f"ERROR: Ollama is not running. Run: ollama serve ({e.reason})"
         except Exception as e:
-            return f"ERRO inesperado: {e}"
+            return f"Unexpected error: {e}"
 
     def think(self, user_input: str, history: list) -> tuple[str, str]:
         """
-        Pensa sobre o input e retorna (modelo_usado, resposta).
+        Processes input and returns (model_used, response).
         """
         model, prompt_type = self.route(user_input)
 
-        # Log de roteamento no terminal
+        # Routing log
         icon = "💻" if prompt_type == "coder" else "🧠"
         short_model = model.split(":")[0]
-        print(f"\n{icon} Roteando para: {short_model} ({prompt_type})", flush=True)
+        print(f"\n{icon} Routing to: {short_model} ({prompt_type})", flush=True)
 
         response = self._call(model, prompt_type, user_input, history)
         return short_model, response
@@ -183,16 +178,16 @@ IMPORTANTE:
         history: list,
     ) -> str:
         """
-        Após executar uma ação, interpreta o resultado e gera resposta final.
-        Usa o mesmo modelo que foi usado na resposta original.
+        After executing an action, interprets the result and generates a final response.
+        Uses the same model that was used in the original response.
         """
         model, prompt_type = self.route(original_input)
 
         prompt = (
-            f"Tarefa original: {original_input}\n\n"
-            f"Ação executada e resultado:\n{action_result}\n\n"
-            "Interprete o resultado acima. Se houve erro, sugira correção. "
-            "Se foi bem-sucedido, confirme e ofereça próximos passos."
+            f"Original task: {original_input}\n\n"
+            f"Action executed and result:\n{action_result}\n\n"
+            "Interpret the result above. If there was an error, suggest a fix. "
+            "If successful, confirm and offer next steps."
         )
 
         return self._call(model, prompt_type, prompt, history)
