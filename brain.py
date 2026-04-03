@@ -156,6 +156,16 @@ IMPORTANT:
         except Exception as e:
             return f"Unexpected error: {e}"
 
+    def translate_to_english(self, text: str) -> str:
+        """Detects language and translates to English if needed."""
+        prompt = (
+            f"If the following text is already in English, return it exactly as is. "
+            f"If it is in another language, translate it to English. "
+            f"Return ONLY the translated or original text, nothing else.\n\n{text}"
+        )
+        result = self._call(self.GENERAL_MODEL, "general", prompt, [])
+        return result.strip() or text
+
     def think(self, user_input: str, history: list) -> tuple[str, str]:
         """
         Processes input and returns (model_used, response).

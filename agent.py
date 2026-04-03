@@ -86,6 +86,9 @@ def select_project(data: dict) -> tuple[str, dict] | tuple[None, None]:
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
+COMMANDS = {"index", "summarize", "map", "switch", "history", "clear", "clear_log", "quit", "exit"}
+
+
 def main():
     print("=" * 50)
     print("  🐼 PandaAgent v2")
@@ -149,7 +152,11 @@ def main():
             if not user_input:
                 continue
 
-            # ── Comandos especiais ──────────────────
+            # Auto-translate non-English input
+            if user_input.lower() not in COMMANDS and len(user_input.split()) > 2:
+                user_input = brain.translate_to_english(user_input)
+
+            # -- Special commands --
             if user_input.lower() in ("quit", "exit"):
                 print("Shutting down. Goodbye! 🐼")
                 break
