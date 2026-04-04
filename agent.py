@@ -154,7 +154,10 @@ def main():
 
             # Auto-translate non-English input
             if user_input.lower() not in COMMANDS and len(user_input.split()) > 2:
-                user_input = brain.translate_to_english(user_input)
+                translated = brain.translate_to_english(user_input)
+                if translated != user_input:
+                    print(f"   🔄 Translated: {translated}")
+                user_input = translated
 
             # -- Special commands --
             if user_input.lower() in ("quit", "exit"):
