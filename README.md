@@ -78,19 +78,20 @@ ollama pull deepseek-coder:6.7b-instruct-q4_K_M
 python agent.py
 ```
 
-Select a project from the menu or choose general mode. Type `indexar` to index the selected project before asking code-related questions.
+Select a project from the menu or choose general mode. Type `index` to index the selected project before asking code-related questions.
 
 ## Special commands
 
 | Command | Action |
 |---------|--------|
-| `indexar` | Index the current project |
-| `mapa` | Show the project file map |
-| `trocar` | Switch to another project |
-| `historico` | Show conversation log |
-| `limpar` | Clear session history |
-| `limpar_log` | Archive `memory.txt` with timestamp and start fresh |
-| `sair` | Exit |
+| `index` | Index the current project |
+| `summarize` | Explain what the project does (requires `index`) |
+| `map` | Show the project file map |
+| `switch` | Switch to another project |
+| `history` | Show conversation log |
+| `clear` | Clear session history |
+| `clear_log` | Archive `memory.txt` with timestamp and start fresh |
+| `quit` | Exit |
 
 ## Hardware
 
