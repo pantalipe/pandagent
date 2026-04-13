@@ -50,7 +50,7 @@ The `indexer.py` module reads the codebase and builds a relevance-scored index. 
 ## Structure
 
 ```
-panda_agent/
+pandagent/
 ├── agent.py        # entry point — orchestrates everything
 ├── brain.py        # model routing + Ollama calls
 ├── executor.py     # action parser + system execution
