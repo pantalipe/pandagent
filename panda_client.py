@@ -19,16 +19,14 @@ Importable from other projects:
 """
 
 import json
+import re
 import urllib.error
 import urllib.request
 
 # ─────────────────────────────────────────────
 # DEFAULTS
 # ─────────────────────────────────────────────
-OLLAMA_BASE_URL   = "http://localhost:11434"
-OLLAMA_GENERATE   = f"{OLLAMA_BASE_URL}/api/generate"
-OLLAMA_TAGS       = f"{OLLAMA_BASE_URL}/api/tags"
-
+OLLAMA_BASE_URL    = "http://localhost:11434"
 DEFAULT_TEXT_MODEL = "phi3"
 DEFAULT_CODE_MODEL = "deepseek-coder:6.7b-instruct-q4_K_M"
 
@@ -42,6 +40,17 @@ _CODE_KEYWORDS = [
     "api", "endpoint", "route", "web3", "abi", "erc",
     "next.js", "react", "hardhat", "foundry", "truffle",
     "execute", "run", "command",
+]
+
+# Phrases the model might leak from the prompt into its response.
+# Anything from here onward gets stripped from commit message output.
+_COMMIT_LEAK_MARKERS = [
+    "developer context:",
+    "generate the commit message",
+    "git status:",
+    "git diff:",
+    "no diff available",
+    "reply only",
 ]
 
 
@@ -202,30 +211,45 @@ class PandaClient:
         -------
         dict  →  {"ok": bool, "output": str, "model": str, "task": str}
         """
+        # Build context block — kept separate from the instruction
         context_parts = []
         if status.strip():
-            context_parts.append(f"Git status:\n{status.strip()}")
+            context_parts.append(f"### git status\n{status.strip()}")
         if diff.strip():
-            context_parts.append(f"Git diff:\n{diff.strip()[:3000]}")
+            context_parts.append(f"### git diff\n{diff.strip()[:3000]}")
         if extra_context.strip():
-            context_parts.append(f"Developer context: {extra_context.strip()}")
+            context_parts.append(f"### notes from developer\n{extra_context.strip()}")
 
-        context = "\n\n".join(context_parts) or "(no diff available)"
+        context = "\n\n".join(context_parts) if context_parts else "(no diff available)"
 
+        # Tighter system prompt — explicit stop condition
         system = (
-            "You are a development assistant. "
-            "Analyze the diff and status below and generate ONE clear commit message in English, "
-            "following the conventional commits standard (feat, fix, refactor, docs, chore, etc). "
-            "Reply ONLY with the commit message — no explanations, no quotes, no extra prefix."
+            "You are a git commit message generator.\n"
+            "Rules:\n"
+            "1. Output ONE single line following Conventional Commits: "
+            "<type>(<scope>): <description>\n"
+            "   Valid types: feat, fix, refactor, docs, chore, test, style, perf\n"
+            "2. The line must be under 72 characters.\n"
+            "3. Write NOTHING else — no body, no footer, no explanation, "
+            "no bullet points, no markdown, no quotes.\n"
+            "4. Stop after the first line. Do not continue writing."
         )
 
-        return self.ask(
-            prompt="Generate the commit message for the changes above.",
+        result = self.ask(
+            prompt="Commit message:",
             task="text",
             system=system,
             context=context,
-            temperature=0.3,
+            temperature=0.2,
+            max_tokens=80,  # Hard cap — a commit subject is never more than ~72 chars
         )
+
+        if result["ok"]:
+            result["output"] = self._clean_commit(result["output"])
+            if not result["output"]:
+                return self._err("Model returned an empty commit message after cleanup.", result["model"], result["task"])
+
+        return result
 
     def generate_readme(
         self,
@@ -283,10 +307,12 @@ class PandaClient:
             "Use markdown. Include: project name, short description, what it does, main features, "
             "stack, how to run (if inferable), and project structure. "
             "Do NOT include a license section. Keep it concise and developer-focused. "
-            "Reply ONLY with the raw markdown content — no explanations, no code fences around the whole file."
+            "IMPORTANT: Output raw markdown only. "
+            "Do NOT wrap the output in ```markdown fences or any other code block. "
+            "Start directly with # ProjectName."
         )
 
-        return self.ask(
+        result = self.ask(
             prompt="Generate the README.md for the project above.",
             task="text",
             system=system,
@@ -294,6 +320,11 @@ class PandaClient:
             temperature=0.4,
             max_tokens=2048,
         )
+
+        if result["ok"]:
+            result["output"] = self._clean_markdown_fences(result["output"])
+
+        return result
 
     def generate_script(
         self,
@@ -344,6 +375,77 @@ class PandaClient:
             temperature=0.7,
             max_tokens=1024,
         )
+
+    # ─────────────────────────────────────────────
+    # OUTPUT CLEANERS
+    # ─────────────────────────────────────────────
+
+    @staticmethod
+    def _clean_commit(raw: str) -> str:
+        """
+        Extracts the conventional commit subject line from model output.
+
+        Strategy:
+        1. Split into lines, take the first non-empty one.
+        2. Strip markdown formatting (bold, backticks, quotes).
+        3. Cut anything after a known prompt-leak marker.
+        4. Validate it looks like a conventional commit; if not, return as-is
+           (better than returning empty).
+        """
+        if not raw:
+            return ""
+
+        lines = [l.strip() for l in raw.strip().splitlines() if l.strip()]
+        if not lines:
+            return ""
+
+        # Pick the first line that looks like a conventional commit
+        # (starts with a known type keyword)
+        conventional_types = (
+            "feat", "fix", "refactor", "docs", "chore",
+            "test", "style", "perf", "build", "ci",
+        )
+        candidate = lines[0]
+        for line in lines:
+            if any(line.lower().startswith(t) for t in conventional_types):
+                candidate = line
+                break
+
+        # Strip markdown formatting artifacts
+        candidate = candidate.strip("`*\"'")
+
+        # Cut at any prompt-leak marker (case-insensitive)
+        lower = candidate.lower()
+        for marker in _COMMIT_LEAK_MARKERS:
+            idx = lower.find(marker)
+            if idx != -1:
+                candidate = candidate[:idx].strip()
+                break
+
+        # Strip trailing punctuation that doesn't belong
+        candidate = candidate.rstrip(".,;:")
+
+        return candidate.strip()
+
+    @staticmethod
+    def _clean_markdown_fences(raw: str) -> str:
+        """
+        Removes wrapping ```markdown ... ``` or ``` ... ``` fences
+        that models sometimes add despite being told not to.
+        Also strips a leading 'markdown' word if the model just output that.
+        """
+        text = raw.strip()
+
+        # Remove opening ```markdown or ```
+        text = re.sub(r"^```(?:markdown)?\s*\n?", "", text, flags=re.IGNORECASE)
+
+        # Remove closing ```
+        text = re.sub(r"\n?```\s*$", "", text)
+
+        # If the whole thing starts with just the word "markdown" on its own line
+        text = re.sub(r"^markdown\s*\n", "", text, flags=re.IGNORECASE)
+
+        return text.strip()
 
     # ─────────────────────────────────────────────
     # INTERNAL HELPERS
