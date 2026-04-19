@@ -42,15 +42,25 @@ _CODE_KEYWORDS = [
     "execute", "run", "command",
 ]
 
-# Phrases the model might leak from the prompt into its response.
-# Anything from here onward gets stripped from commit message output.
+# Phrases/patterns that signal the model leaked prompt content into the output.
+# Matched case-insensitively. Anything from the match onward gets stripped.
 _COMMIT_LEAK_MARKERS = [
+    "developer notes:",
     "developer context:",
+    "project context:",
     "generate the commit message",
     "git status:",
     "git diff:",
     "no diff available",
     "reply only",
+    "status:",
+    "stack:",
+    "objective:",
+    "description:",
+    ". prepared to",
+    ". status:",
+    ". stack:",
+    " #",        # issue/PR references like #123 or #abc
 ]
 
 
@@ -194,7 +204,13 @@ class PandaClient:
     # CONVENIENCE SHORTCUTS
     # ─────────────────────────────────────────────
 
-    def commit_message(self, diff: str, status: str = "", extra_context: str = "") -> dict:
+    def commit_message(
+        self,
+        diff: str,
+        status: str = "",
+        extra_context: str = "",
+        project_name: str = "",
+    ) -> dict:
         """
         Generate a conventional commit message from a git diff.
 
@@ -206,33 +222,41 @@ class PandaClient:
             Output of `git status --short` (optional, improves quality).
         extra_context : str
             Any additional context from the developer (optional).
+        project_name : str
+            The project name to use as the commit scope (optional).
 
         Returns
         -------
-        dict  →  {"ok": bool, "output": str, "model": str, "task": str}
+        dict  ->  {"ok": bool, "output": str, "model": str, "task": str}
         """
-        # Build context block — kept separate from the instruction
         context_parts = []
         if status.strip():
             context_parts.append(f"### git status\n{status.strip()}")
         if diff.strip():
             context_parts.append(f"### git diff\n{diff.strip()[:3000]}")
         if extra_context.strip():
-            context_parts.append(f"### notes from developer\n{extra_context.strip()}")
+            context_parts.append(f"### background info (DO NOT copy into output)\n{extra_context.strip()}")
 
         context = "\n\n".join(context_parts) if context_parts else "(no diff available)"
 
-        # Tighter system prompt — explicit stop condition
+        scope_rule = (
+            f"   Use '{project_name}' as the scope, e.g. feat({project_name}): ...\n"
+            if project_name else
+            "   Infer the scope from the diff (module, file area or feature name).\n"
+        )
+
         system = (
             "You are a git commit message generator.\n"
             "Rules:\n"
             "1. Output ONE single line following Conventional Commits: "
             "<type>(<scope>): <description>\n"
             "   Valid types: feat, fix, refactor, docs, chore, test, style, perf\n"
-            "2. The line must be under 72 characters.\n"
-            "3. Write NOTHING else — no body, no footer, no explanation, "
-            "no bullet points, no markdown, no quotes.\n"
-            "4. Stop after the first line. Do not continue writing."
+            f"{scope_rule}"
+            "2. Write NOTHING else — no body, no footer, no explanation, "
+            "no issue references (#), no metadata.\n"
+            "3. The background info section is for context only — "
+            "do NOT reproduce any of it in the output.\n"
+            "4. Stop immediately after the commit subject line."
         )
 
         result = self.ask(
@@ -241,13 +265,16 @@ class PandaClient:
             system=system,
             context=context,
             temperature=0.2,
-            max_tokens=80,  # Hard cap — a commit subject is never more than ~72 chars
+            max_tokens=200,  # enough for any subject line, no artificial truncation
         )
 
         if result["ok"]:
             result["output"] = self._clean_commit(result["output"])
             if not result["output"]:
-                return self._err("Model returned an empty commit message after cleanup.", result["model"], result["task"])
+                return self._err(
+                    "Model returned an empty commit message after cleanup.",
+                    result["model"], result["task"],
+                )
 
         return result
 
@@ -261,32 +288,8 @@ class PandaClient:
         file_structure: str = "",
         project_context: str = "",
     ) -> dict:
-        """
-        Generate a README.md in English for a project.
-
-        Parameters
-        ----------
-        project_name : str
-            Name of the project.
-        description : str
-            Short description.
-        objective : str
-            What the project is trying to achieve.
-        stack : list[str]
-            Technologies used.
-        status : str
-            Development status.
-        file_structure : str
-            File tree as a string (from scan_project_structure or similar).
-        project_context : str
-            Any additional context (package.json contents, etc).
-
-        Returns
-        -------
-        dict  →  {"ok": bool, "output": str, "model": str, "task": str}
-        """
+        """Generate a README.md in English for a project."""
         stack_str = ", ".join(stack or [])
-
         context_parts = [
             f"Project name: {project_name}",
             f"Description: {description}" if description else "",
@@ -298,9 +301,7 @@ class PandaClient:
             context_parts.append(f"\nFile structure:\n{file_structure.strip()}")
         if project_context.strip():
             context_parts.append(f"\nAdditional context:\n{project_context.strip()[:800]}")
-
         context = "\n".join(p for p in context_parts if p)
-
         system = (
             "You are a technical writer. "
             "Generate a clean and professional README.md in English for the project described below. "
@@ -311,19 +312,12 @@ class PandaClient:
             "Do NOT wrap the output in ```markdown fences or any other code block. "
             "Start directly with # ProjectName."
         )
-
         result = self.ask(
             prompt="Generate the README.md for the project above.",
-            task="text",
-            system=system,
-            context=context,
-            temperature=0.4,
-            max_tokens=2048,
+            task="text", system=system, context=context, temperature=0.4, max_tokens=2048,
         )
-
         if result["ok"]:
             result["output"] = self._clean_markdown_fences(result["output"])
-
         return result
 
     def generate_script(
@@ -333,47 +327,22 @@ class PandaClient:
         duration_seconds: int = 60,
         language: str = "pt-BR",
     ) -> dict:
-        """
-        Generate a short-form video script (for rotman).
-
-        Parameters
-        ----------
-        topic : str
-            The video topic.
-        persona : str
-            Channel persona instructions (from persona_bitcoinfacil.txt, etc).
-        duration_seconds : int
-            Target video duration in seconds (default: 60).
-        language : str
-            Output language (default: pt-BR).
-
-        Returns
-        -------
-        dict  →  {"ok": bool, "output": str, "model": str, "task": str}
-        """
+        """Generate a short-form video script (for rotman)."""
         context_parts = [f"Topic: {topic}"]
         if persona.strip():
             context_parts.append(f"Channel persona:\n{persona.strip()}")
-        context_parts.append(
-            f"Target duration: ~{duration_seconds} seconds. "
-            f"Output language: {language}."
-        )
-
+        context_parts.append(f"Target duration: ~{duration_seconds} seconds. Output language: {language}.")
         system = (
             "You are a short-form video scriptwriter. "
             "Write an engaging, conversational script for the topic below. "
-            "Structure: hook (5s) → main content → CTA. "
+            "Structure: hook (5s) -> main content -> CTA. "
             "Keep it natural for text-to-speech narration. "
             "Reply ONLY with the script text — no stage directions, no scene headers, no formatting."
         )
-
         return self.ask(
             prompt="Write the video script for the topic above.",
-            task="text",
-            system=system,
-            context="\n".join(context_parts),
-            temperature=0.7,
-            max_tokens=1024,
+            task="text", system=system, context="\n".join(context_parts),
+            temperature=0.7, max_tokens=1024,
         )
 
     # ─────────────────────────────────────────────
@@ -383,14 +352,9 @@ class PandaClient:
     @staticmethod
     def _clean_commit(raw: str) -> str:
         """
-        Extracts the conventional commit subject line from model output.
-
-        Strategy:
-        1. Split into lines, take the first non-empty one.
-        2. Strip markdown formatting (bold, backticks, quotes).
-        3. Cut anything after a known prompt-leak marker.
-        4. Validate it looks like a conventional commit; if not, return as-is
-           (better than returning empty).
+        Extracts a clean conventional commit subject line from model output.
+        Takes the first line that starts with a conventional type,
+        strips artifacts and leak markers. No length truncation.
         """
         if not raw:
             return ""
@@ -399,8 +363,6 @@ class PandaClient:
         if not lines:
             return ""
 
-        # Pick the first line that looks like a conventional commit
-        # (starts with a known type keyword)
         conventional_types = (
             "feat", "fix", "refactor", "docs", "chore",
             "test", "style", "perf", "build", "ci",
@@ -411,40 +373,30 @@ class PandaClient:
                 candidate = line
                 break
 
-        # Strip markdown formatting artifacts
+        # Strip markdown artifacts
         candidate = candidate.strip("`*\"'")
 
-        # Cut at any prompt-leak marker (case-insensitive)
+        # Cut at any leak marker (case-insensitive), whichever comes first
         lower = candidate.lower()
+        cut_at = len(candidate)
         for marker in _COMMIT_LEAK_MARKERS:
             idx = lower.find(marker)
-            if idx != -1:
-                candidate = candidate[:idx].strip()
-                break
+            if idx != -1 and idx < cut_at:
+                cut_at = idx
+        candidate = candidate[:cut_at].strip()
 
-        # Strip trailing punctuation that doesn't belong
+        # Strip trailing punctuation
         candidate = candidate.rstrip(".,;:")
 
         return candidate.strip()
 
     @staticmethod
     def _clean_markdown_fences(raw: str) -> str:
-        """
-        Removes wrapping ```markdown ... ``` or ``` ... ``` fences
-        that models sometimes add despite being told not to.
-        Also strips a leading 'markdown' word if the model just output that.
-        """
+        """Removes wrapping ```markdown / ``` fences."""
         text = raw.strip()
-
-        # Remove opening ```markdown or ```
         text = re.sub(r"^```(?:markdown)?\s*\n?", "", text, flags=re.IGNORECASE)
-
-        # Remove closing ```
         text = re.sub(r"\n?```\s*$", "", text)
-
-        # If the whole thing starts with just the word "markdown" on its own line
         text = re.sub(r"^markdown\s*\n", "", text, flags=re.IGNORECASE)
-
         return text.strip()
 
     # ─────────────────────────────────────────────
@@ -452,19 +404,16 @@ class PandaClient:
     # ─────────────────────────────────────────────
 
     def _resolve(self, prompt: str, task: str) -> tuple[str, str]:
-        """Resolves which model and task type to use."""
         if task == "code":
             return self.code_model, "code"
         if task == "text":
             return self.text_model, "text"
-        # Auto-route
         score = sum(1 for kw in _CODE_KEYWORDS if kw in prompt.lower())
         if score >= 2:
             return self.code_model, "code"
         return self.text_model, "text"
 
     def _build_prompt(self, prompt: str, system: str, context: str) -> str:
-        """Assembles the final prompt string."""
         parts = []
         if system.strip():
             parts.append(system.strip())
