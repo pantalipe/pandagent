@@ -6,6 +6,8 @@ Local AI development assistant powered by Ollama. Zero API costs, zero cloud dep
 
 A modular AI agent that runs entirely on your machine. It routes tasks between two local models — one for planning, one for code generation — and can execute actions directly on your filesystem based on the model's responses.
 
+It also exposes `panda_client.py` — a shared Ollama client that any project in the ecosystem can import to access LLM functionality without duplicating Ollama call logic.
+
 ## How it works
 
 ```
@@ -47,17 +49,39 @@ Projects are registered in `projects.json`. When a project is selected at startu
 
 The `indexer.py` module reads the codebase and builds a relevance-scored index. For each user message, it injects only the most relevant files into the prompt, staying within the model's context window.
 
+## panda_client — shared Ollama client
+
+`panda_client.py` is a standalone module that any project in the PandaEcosystem can import
+to access Ollama without duplicating call logic:
+
+```python
+import sys
+sys.path.insert(0, "C:/Users/panta/pandagent")
+from panda_client import PandaClient
+
+client = PandaClient()
+client.ask("Explain this diff", task="code")
+client.commit_message(diff=diff_text, status=status_text, project_name="gitmanager")
+client.generate_readme(project_name="myproject", description="...", stack=["python"])
+client.generate_script(topic="What is Bitcoin halving?", language="pt-BR")
+client.is_online()          # True if Ollama is reachable
+client.available_models()   # list of installed model names
+```
+
+Currently used by: **gitmanager** (commit suggestions, README generation) and **rotman** (script generation via `generate_script()`).
+
 ## Structure
 
 ```
 pandagent/
-├── agent.py        # entry point — orchestrates everything
-├── brain.py        # model routing + Ollama calls
-├── executor.py     # action parser + system execution
-├── indexer.py      # codebase reader + relevance search
-├── memory.py       # session history + persistent log
-├── memory.txt      # conversation log (auto-generated)
-└── projects.json   # project registry
+├── agent.py          # entry point — orchestrates everything
+├── brain.py          # model routing + Ollama calls
+├── executor.py       # action parser + system execution
+├── indexer.py        # codebase reader + relevance search
+├── memory.py         # session history + persistent log
+├── panda_client.py   # shared Ollama client for the ecosystem
+├── memory.txt        # conversation log (auto-generated)
+└── projects.json     # project registry
 ```
 
 ## Requirements

@@ -7,8 +7,32 @@ All notable changes to pandagent are documented here.
 ## [Unreleased]
 
 ### Added
+- `panda_client.py` — shared Ollama client for the PandaEcosystem. Single point
+  of contact with Ollama, importable by any project in the ecosystem via `sys.path`.
+  Provides model routing (phi3 for text, deepseek-coder for code) and convenience
+  shortcuts: `ask()`, `commit_message()`, `generate_readme()`, `generate_script()`,
+  `is_online()`, `available_models()`
+- `commit_message()` — generates conventional commit messages from a git diff,
+  with explicit scope enforcement via `project_name` parameter
+- `generate_readme()` — generates a `README.md` from project metadata and file structure
+- `generate_script()` — generates short-form video scripts for rotman with persona support
+- `_clean_commit()` — post-processing cleaner that strips leaked prompt content,
+  issue references (`#`) and markdown artifacts from model output
+- `_clean_markdown_fences()` — strips ` ```markdown ` fences that models add
+  despite being instructed not to
+- `_COMMIT_LEAK_MARKERS` — list of patterns used to detect and cut leaked context
+  from commit message output (status, stack, objective, description, issue refs, etc.)
 - Auto-translation of non-English user input before routing (via Ollama phi3)
 - Translated input is displayed in the console when a change is detected
+
+### Changed
+- `commit_message()` system prompt tightened with numbered rules, explicit stop
+  instruction and `background info (DO NOT copy into output)` section label
+- `max_tokens` for commit generation set to 200 — allows full subject lines without
+  artificial truncation
+- `project_name` parameter added to `commit_message()` — injects an explicit scope
+  rule into the system prompt so the model uses the project name as the commit scope
+  instead of inferring it from filenames in the diff
 
 ---
 
