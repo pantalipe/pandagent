@@ -23,9 +23,9 @@ import re
 import urllib.error
 import urllib.request
 
-# ─────────────────────────────────────────────
+# -------------------------------------------------
 # DEFAULTS
-# ─────────────────────────────────────────────
+# -------------------------------------------------
 OLLAMA_BASE_URL    = "http://localhost:11434"
 DEFAULT_TEXT_MODEL = "phi3"
 DEFAULT_CODE_MODEL = "deepseek-coder:6.7b-instruct-q4_K_M"
@@ -89,9 +89,9 @@ class PandaClient:
         self._generate_url = f"{base_url}/api/generate"
         self._tags_url     = f"{base_url}/api/tags"
 
-    # ─────────────────────────────────────────────
+    # -------------------------------------------------
     # PUBLIC API
-    # ─────────────────────────────────────────────
+    # -------------------------------------------------
 
     def is_online(self) -> bool:
         """Returns True if Ollama is reachable."""
@@ -130,9 +130,9 @@ class PandaClient:
         prompt : str
             The user prompt.
         task : str
-            "auto"  → route based on prompt content (default)
-            "text"  → force text/planning model (phi3)
-            "code"  → force code model (deepseek-coder)
+            "auto"  -> route based on prompt content (default)
+            "text"  -> force text/planning model (phi3)
+            "code"  -> force code model (deepseek-coder)
         system : str
             Optional system prompt injected before the user prompt.
         context : str
@@ -200,9 +200,9 @@ class PandaClient:
         except Exception as e:
             return self._err(f"Unexpected error: {e}", model, resolved_task)
 
-    # ─────────────────────────────────────────────
+    # -------------------------------------------------
     # CONVENIENCE SHORTCUTS
-    # ─────────────────────────────────────────────
+    # -------------------------------------------------
 
     def commit_message(
         self,
@@ -252,9 +252,9 @@ class PandaClient:
             "<type>(<scope>): <description>\n"
             "   Valid types: feat, fix, refactor, docs, chore, test, style, perf\n"
             f"{scope_rule}"
-            "2. Write NOTHING else — no body, no footer, no explanation, "
+            "2. Write NOTHING else -- no body, no footer, no explanation, "
             "no issue references (#), no metadata.\n"
-            "3. The background info section is for context only — "
+            "3. The background info section is for context only -- "
             "do NOT reproduce any of it in the output.\n"
             "4. Stop immediately after the commit subject line."
         )
@@ -265,7 +265,7 @@ class PandaClient:
             system=system,
             context=context,
             temperature=0.2,
-            max_tokens=200,  # enough for any subject line, no artificial truncation
+            max_tokens=200,
         )
 
         if result["ok"]:
@@ -337,7 +337,7 @@ class PandaClient:
             "Write an engaging, conversational script for the topic below. "
             "Structure: hook (5s) -> main content -> CTA. "
             "Keep it natural for text-to-speech narration. "
-            "Reply ONLY with the script text — no stage directions, no scene headers, no formatting."
+            "Reply ONLY with the script text -- no stage directions, no scene headers, no formatting."
         )
         return self.ask(
             prompt="Write the video script for the topic above.",
@@ -345,9 +345,92 @@ class PandaClient:
             temperature=0.7, max_tokens=1024,
         )
 
-    # ─────────────────────────────────────────────
+    def generate_hardhat_test(
+        self,
+        function_name: str,
+        abi_entry: dict,
+        contract_name: str = "PandaPoints",
+        contract_context: str = "",
+    ) -> dict:
+        """
+        Generate a Hardhat/ethers.js test scaffold for a single contract function.
+
+        Parameters
+        ----------
+        function_name : str
+            The name of the function to test (e.g. "buyTokens").
+        abi_entry : dict
+            The ABI entry for that function (parsed from abi.json).
+        contract_name : str
+            The Solidity contract name used in the test description (default: "PandaPoints").
+        contract_context : str
+            Optional extra context about the contract behaviour to guide generation.
+
+        Returns
+        -------
+        dict  ->  {"ok": bool, "output": str, "model": str, "task": str}
+
+        Notes
+        -----
+        - Output is a standalone Hardhat test file using ethers.js v6 syntax.
+        - The file can be saved directly to test/generated/<functionName>.test.js.
+        - Uses deepseek-coder (code model) with temperature 0.2 for deterministic output.
+        """
+        abi_json  = json.dumps(abi_entry, indent=2)
+        state_mut = abi_entry.get("stateMutability", "nonpayable")
+        inputs    = abi_entry.get("inputs", [])
+        outputs   = abi_entry.get("outputs", [])
+
+        inputs_desc  = ", ".join(f"{i['name']} ({i['type']})" for i in inputs)  if inputs  else "none"
+        outputs_desc = ", ".join(f"{o['name']} ({o['type']})" for o in outputs) if outputs else "none"
+
+        context_parts = [
+            f"Contract: {contract_name}",
+            f"Function to test: {function_name}",
+            f"stateMutability: {state_mut}",
+            f"Inputs: {inputs_desc}",
+            f"Outputs: {outputs_desc}",
+            f"\nABI entry:\n{abi_json}",
+        ]
+        if contract_context.strip():
+            context_parts.append(f"\nContract context:\n{contract_context.strip()}")
+
+        context = "\n".join(context_parts)
+
+        system = (
+            "You are a Solidity smart contract test engineer.\n"
+            "Generate a complete, runnable Hardhat test file in JavaScript for the function described below.\n\n"
+            "Rules:\n"
+            "1. Use ethers.js v6 syntax (e.g. ethers.parseEther, signer.getAddress, contract.connect).\n"
+            "2. Use Hardhat's loadFixture pattern from @nomicfoundation/hardhat-toolbox.\n"
+            "3. The fixture must deploy the contract using ethers.getContractFactory.\n"
+            "   Since the contract has a constructor with no arguments, use: await factory.deploy();\n"
+            "4. Include at least 3 test cases: happy path, edge case, and revert/failure case.\n"
+            "5. Use descriptive it() labels that explain what is being asserted.\n"
+            "6. For payable functions, send value using { value: ethers.parseEther('1.0') }.\n"
+            "7. For view/pure functions, assert the return value with expect().\n"
+            "8. Do NOT import the ABI from an external file -- use ethers.getContractFactory with the contract name.\n"
+            "9. Output ONLY the JavaScript file content. No markdown fences, no explanation.\n"
+            "10. Start the file with the 'use strict'; line."
+        )
+
+        result = self.ask(
+            prompt=f"Generate the Hardhat test file for the '{function_name}' function.",
+            task="code",
+            system=system,
+            context=context,
+            temperature=0.2,
+            max_tokens=2048,
+        )
+
+        if result["ok"]:
+            result["output"] = self._clean_markdown_fences(result["output"])
+
+        return result
+
+    # -------------------------------------------------
     # OUTPUT CLEANERS
-    # ─────────────────────────────────────────────
+    # -------------------------------------------------
 
     @staticmethod
     def _clean_commit(raw: str) -> str:
@@ -392,16 +475,16 @@ class PandaClient:
 
     @staticmethod
     def _clean_markdown_fences(raw: str) -> str:
-        """Removes wrapping ```markdown / ``` fences."""
+        """Removes wrapping ```markdown / ``` / ```javascript fences."""
         text = raw.strip()
-        text = re.sub(r"^```(?:markdown)?\s*\n?", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"^```(?:markdown|javascript|js|solidity)?\s*\n?", "", text, flags=re.IGNORECASE)
         text = re.sub(r"\n?```\s*$", "", text)
-        text = re.sub(r"^markdown\s*\n", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"^(?:markdown|javascript)\s*\n", "", text, flags=re.IGNORECASE)
         return text.strip()
 
-    # ─────────────────────────────────────────────
+    # -------------------------------------------------
     # INTERNAL HELPERS
-    # ─────────────────────────────────────────────
+    # -------------------------------------------------
 
     def _resolve(self, prompt: str, task: str) -> tuple[str, str]:
         if task == "code":
