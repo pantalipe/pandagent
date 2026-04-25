@@ -30,6 +30,25 @@ OLLAMA_BASE_URL    = "http://localhost:11434"
 DEFAULT_TEXT_MODEL = "phi3"
 DEFAULT_CODE_MODEL = "deepseek-coder:6.7b-instruct-q4_K_M"
 
+# -------------------------------------------------
+# TASK → MODEL ROUTING MAP
+# Derived from ollama-bench results (2026-04-25).
+# Keys match task/channel identifiers used across the ecosystem.
+# Override at runtime by passing model= to ask() directly.
+# -------------------------------------------------
+TASK_MODEL_MAP: dict[str, str] = {
+    # commit messages — deepseek is most consistent (0.67 on complex diff)
+    "commit":            "deepseek-coder:6.7b-instruct-q4_K_M",
+    # code generation — phi3 fastest + consistency 1.0 on Solidity
+    "code_python":       "phi3",
+    "code_solidity":     "phi3",
+    # README / generic text — phi3 fastest, quality acceptable
+    "readme":            "phi3",
+    # short-form video scripts by channel
+    "script_bitcoinfacil": "llama3.1:8b",   # pt-BR hooks — llama best quality
+    "script_pandapoints":  "mistral:7b",    # EN hooks  — mistral most consistent
+}
+
 # Keywords that signal a CODE task
 _CODE_KEYWORDS = [
     "python", "solidity", "javascript", "typescript", "html", "css",
@@ -326,8 +345,29 @@ class PandaClient:
         persona: str = "",
         duration_seconds: int = 60,
         language: str = "pt-BR",
+        channel: str = "",
     ) -> dict:
-        """Generate a short-form video script (for rotman)."""
+        """
+        Generate a short-form video script (for rotman).
+
+        Parameters
+        ----------
+        channel : str
+            Optional channel identifier used for model routing via TASK_MODEL_MAP.
+            Accepted values: "bitcoinfacil" (pt-BR), "pandapoints" (en).
+            When provided, overrides the default text model for this call.
+            If omitted, falls back to DEFAULT_TEXT_MODEL.
+        """
+        # Resolve model from channel if provided
+        task_key = f"script_{channel.lower().replace('-', '')}" if channel else ""
+        model = TASK_MODEL_MAP.get(task_key, self.text_model)
+
+        # Auto-set language from channel if caller didn't override the default
+        if channel.lower() in ("bitcoinfacil",) and language == "pt-BR":
+            language = "pt-BR"
+        elif channel.lower() in ("pandapoints",) and language == "pt-BR":
+            language = "en"
+
         context_parts = [f"Topic: {topic}"]
         if persona.strip():
             context_parts.append(f"Channel persona:\n{persona.strip()}")
@@ -339,11 +379,15 @@ class PandaClient:
             "Keep it natural for text-to-speech narration. "
             "Reply ONLY with the script text -- no stage directions, no scene headers, no formatting."
         )
-        return self.ask(
+        result = self.ask(
             prompt="Write the video script for the topic above.",
             task="text", system=system, context="\n".join(context_parts),
             temperature=0.7, max_tokens=1024,
         )
+        # Stamp which model was actually used for script routing
+        result["routed_via"] = task_key or "default"
+        result["model"] = model
+        return result
 
     def generate_hardhat_test(
         self,
@@ -402,7 +446,9 @@ class PandaClient:
             "Generate a complete, runnable Hardhat test file in JavaScript for the function described below.\n\n"
             "Rules:\n"
             "1. Use ethers.js v6 syntax (e.g. ethers.parseEther, signer.getAddress, contract.connect).\n"
-            "2. Use Hardhat's loadFixture pattern from @nomicfoundation/hardhat-toolbox.\n"
+            "2. Import loadFixture EXACTLY like this:\n"
+            '   const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");\n'
+            "   Do NOT use @nomiclabs/hardhat-waffle or any waffle import -- it does not exist in this project.\n"
             "3. The fixture must deploy the contract using ethers.getContractFactory.\n"
             "   Since the contract has a constructor with no arguments, use: await factory.deploy();\n"
             "4. Include at least 3 test cases: happy path, edge case, and revert/failure case.\n"
@@ -411,7 +457,7 @@ class PandaClient:
             "7. For view/pure functions, assert the return value with expect().\n"
             "8. Do NOT import the ABI from an external file -- use ethers.getContractFactory with the contract name.\n"
             "9. Output ONLY the JavaScript file content. No markdown fences, no explanation.\n"
-            "10. Start the file with the 'use strict'; line."
+            '10. The very first line of the file must be exactly: "use strict";'
         )
 
         result = self.ask(
