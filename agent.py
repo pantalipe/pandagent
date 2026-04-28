@@ -10,6 +10,8 @@ from executor import Executor
 from memory import Memory
 from indexer import Indexer
 
+from bench_runner import BenchRunner
+
 PROJECTS_FILE = Path(__file__).parent / "projects.json"
 
 
@@ -86,7 +88,7 @@ def select_project(data: dict) -> tuple[str, dict] | tuple[None, None]:
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
-COMMANDS = {"index", "summarize", "map", "switch", "history", "clear", "clear_log", "quit", "exit"}
+COMMANDS = {"index", "summarize", "map", "switch", "history", "clear", "clear_log", "bench", "bench run", "quit", "exit"}
 
 
 def main():
@@ -143,6 +145,8 @@ def main():
     print(f"   'history'    → show conversation log")
     print(f"   'clear'      → reset session history")
     print(f"   'clear_log'  → archive memory.txt and start fresh")
+    print(f"   'bench'      → show latest benchmark results")
+    print(f"   'bench run'  → run ollama-bench and update model routing")
     print(f"   'quit'       → exit\n")
 
     while True:
@@ -232,6 +236,39 @@ def main():
                     print(f"✅ Log archived as '{archived}' and session cleared.")
                 else:
                     print("   memory.txt is already empty, nothing to archive.")
+                continue
+
+            if user_input.lower() in ("bench", "bench run"):
+                runner = BenchRunner()
+                if user_input.lower() == "bench run":
+                    # Run benchmark and update routing
+                    result = runner.run()
+                    if result["ok"] and result["best"]:
+                        best = result["best"]
+                        if "text" in best:
+                            brain.GENERAL_MODEL = best["text"]
+                            print(f"   ✅ text model  → {best['text']}")
+                        if "code" in best:
+                            brain.CODER_MODEL = best["code"]
+                            print(f"   ✅ code model  → {best['code']}")
+                        print(f"   Routing updated for this session.")
+                    elif not result["ok"]:
+                        print(f"   ✗ Bench failed: {result['output']}")
+                else:
+                    # Just show latest results
+                    print(runner.summary_table())
+                    best = runner.best_models()
+                    if best:
+                        print()
+                        print(f"   Best text model: {best.get('text', '—')}")
+                        print(f"   Best code model: {best.get('code', '—')}")
+                        print(f"   Current routing: text={brain.GENERAL_MODEL} / code={brain.CODER_MODEL}")
+                        print()
+                        apply = input("   Apply best models to current session? [y/N]: ").strip().lower()
+                        if apply == "y":
+                            if "text" in best: brain.GENERAL_MODEL = best["text"]
+                            if "code" in best: brain.CODER_MODEL   = best["code"]
+                            print(f"   ✅ Routing updated.")
                 continue
 
             # ── Contexto do projeto ─────────────────

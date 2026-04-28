@@ -362,10 +362,10 @@ class PandaClient:
         task_key = f"script_{channel.lower().replace('-', '')}" if channel else ""
         model = TASK_MODEL_MAP.get(task_key, self.text_model)
 
-        # Auto-set language from channel if caller didn't override the default
-        if channel.lower() in ("bitcoinfacil",) and language == "pt-BR":
-            language = "pt-BR"
-        elif channel.lower() in ("pandapoints",) and language == "pt-BR":
+        # Auto-set language from channel if caller didn't override the default.
+        # bitcoinfacil → pt-BR (already the default, no assignment needed).
+        # pandapoints  → en (override the pt-BR default).
+        if channel.lower() == "pandapoints" and language == "pt-BR":
             language = "en"
 
         context_parts = [f"Topic: {topic}"]
