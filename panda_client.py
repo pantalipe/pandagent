@@ -395,6 +395,7 @@ class PandaClient:
         abi_entry: dict,
         contract_name: str = "PandaPoints",
         contract_context: str = "",
+        function_source: str = "",
     ) -> dict:
         """
         Generate a Hardhat/ethers.js test scaffold for a single contract function.
@@ -419,6 +420,8 @@ class PandaClient:
         - Output is a standalone Hardhat test file using ethers.js v6 syntax.
         - The file can be saved directly to test/generated/<functionName>.test.js.
         - Uses deepseek-coder (code model) with temperature 0.2 for deterministic output.
+        - If function_source is provided, the raw Solidity source of the function is
+          injected into the context so the model understands internal logic and guards.
         """
         abi_json  = json.dumps(abi_entry, indent=2)
         state_mut = abi_entry.get("stateMutability", "nonpayable")
@@ -438,6 +441,8 @@ class PandaClient:
         ]
         if contract_context.strip():
             context_parts.append(f"\nContract context:\n{contract_context.strip()}")
+        if function_source.strip():
+            context_parts.append(f"\nSolidity source of this function:\n{function_source.strip()}")
 
         context = "\n".join(context_parts)
 
