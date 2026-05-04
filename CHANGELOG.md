@@ -6,37 +6,34 @@ All notable changes to pandagent are documented here.
 
 ## [Unreleased]
 
+---
+
+## [2.3] — 2026-05-04
+
 ### Added
-- `panda_client.py` — shared Ollama client for the PandaEcosystem. Single point
-  of contact with Ollama, importable by any project in the ecosystem via `sys.path`.
-  Provides model routing (phi3 for text, deepseek-coder for code) and convenience
-  shortcuts: `ask()`, `commit_message()`, `generate_readme()`, `generate_script()`,
-  `is_online()`, `available_models()`
-- `commit_message()` — generates conventional commit messages from a git diff,
-  with explicit scope enforcement via `project_name` parameter
-- `generate_readme()` — generates a `README.md` from project metadata and file structure
-- `generate_script()` — generates short-form video scripts for rotman with persona support
-- `_clean_commit()` — post-processing cleaner that strips leaked prompt content,
-  issue references (`#`) and markdown artifacts from model output
-- `_clean_markdown_fences()` — strips ` ```markdown ` fences that models add
-  despite being instructed not to
-- `_COMMIT_LEAK_MARKERS` — list of patterns used to detect and cut leaked context
-  from commit message output (status, stack, objective, description, issue refs, etc.)
-- Auto-translation of non-English user input before routing (via Ollama phi3)
-- Translated input is displayed in the console when a change is detected
+- `pandagent/` package directory with `__init__.py` and `panda_client.py` — converts
+  the project into an installable package (`pip install -e .`)
+- `pyproject.toml` — package metadata and entry point definition
+- `generate_hardhat_test(function_source)` — generates a Hardhat/ethers v6 test block
+  for a given Solidity function source; used by `pp-testenv/gen_tests.py`
+- `function_source` parameter on `generate_hardhat_test()` — injects the actual
+  Solidity function body into the prompt for context-aware test generation
+- `TASK_MODEL_MAP` — exported dict that routes task keys to specific Ollama models;
+  consumed by rotman and ollama-bench for consistent model selection across the ecosystem
+- `channel` parameter on `generate_script()` — selects model via `TASK_MODEL_MAP`
+  based on channel slug (`bitcoinfacil` → `llama3.1:8b`, `pandapoints` → `mistral:7b`)
+- `bench` and `bench_run` command support — enables ollama-bench integration
 
 ### Changed
-- `commit_message()` system prompt tightened with numbered rules, explicit stop
-  instruction and `background info (DO NOT copy into output)` section label
-- `max_tokens` for commit generation set to 200 — allows full subject lines without
-  artificial truncation
-- `project_name` parameter added to `commit_message()` — injects an explicit scope
-  rule into the system prompt so the model uses the project name as the commit scope
-  instead of inferring it from filenames in the diff
+- Root `panda_client.py` converted to a backward-compatibility shim that re-exports
+  `PandaClient` and `TASK_MODEL_MAP` from the `pandagent` package — existing
+  `sys.path`-based imports continue to work without changes
+- Preferred import pattern is now `from pandagent import PandaClient` after
+  `pip install -e .`
 
 ---
 
-## [2.2] — 2026-04-07
+## [2.2] — 2026-04-21
 
 ### Changed
 - Full source translation from Portuguese to English — all terminal output, prompts, commands, docstrings, and inline comments

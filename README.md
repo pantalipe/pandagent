@@ -51,37 +51,56 @@ The `indexer.py` module reads the codebase and builds a relevance-scored index. 
 
 ## panda_client — shared Ollama client
 
-`panda_client.py` is a standalone module that any project in the PandaEcosystem can import
-to access Ollama without duplicating call logic:
+`pandagent` is an installable package. Install it once in editable mode and any project
+in the ecosystem can import it directly — no `sys.path` hacks needed:
+
+```bash
+cd C:/Users/panta/pandagent
+pip install -e .
+```
 
 ```python
-import sys
-sys.path.insert(0, "C:/Users/panta/pandagent")
-from panda_client import PandaClient
+from pandagent import PandaClient
 
 client = PandaClient()
 client.ask("Explain this diff", task="code")
 client.commit_message(diff=diff_text, status=status_text, project_name="gitmanager")
 client.generate_readme(project_name="myproject", description="...", stack=["python"])
-client.generate_script(topic="What is Bitcoin halving?", language="pt-BR")
+client.generate_script(topic="What is Bitcoin halving?", channel="bitcoinfacil")
+client.generate_hardhat_test(function_source="function buyTokens() ...")
 client.is_online()          # True if Ollama is reachable
 client.available_models()   # list of installed model names
 ```
 
-Currently used by: **gitmanager** (commit suggestions, README generation) and **rotman** (script generation via `generate_script()`).
+### Model routing (TASK_MODEL_MAP)
+
+Each task type is routed to the most appropriate local model:
+
+| Task key | Model | Used by |
+|---|---|---|
+| `commit` | `deepseek-coder` | gitmanager |
+| `code` | `phi3` | pp-testenv |
+| `script_bitcoinfacil` | `llama3.1:8b` | rotman |
+| `script_pandapoints` | `mistral:7b` | rotman |
+
+Currently used by: **gitmanager** (commit suggestions, README generation), **rotman** (script generation per channel), and **pp-testenv** (Hardhat test generation).
 
 ## Structure
 
 ```
 pandagent/
-├── agent.py          # entry point — orchestrates everything
-├── brain.py          # model routing + Ollama calls
-├── executor.py       # action parser + system execution
-├── indexer.py        # codebase reader + relevance search
-├── memory.py         # session history + persistent log
-├── panda_client.py   # shared Ollama client for the ecosystem
-├── memory.txt        # conversation log (auto-generated)
-└── projects.json     # project registry
+├── agent.py               # entry point — orchestrates everything
+├── brain.py               # model routing + Ollama calls
+├── executor.py            # action parser + system execution
+├── indexer.py             # codebase reader + relevance search
+├── memory.py              # session history + persistent log
+├── panda_client.py        # backward-compat shim → re-exports from pandagent package
+├── pyproject.toml         # package definition for pip install -e .
+├── pandagent/
+│   ├── __init__.py        # exports PandaClient and TASK_MODEL_MAP
+│   └── panda_client.py    # full implementation of the shared Ollama client
+├── memory.txt             # conversation log (auto-generated, gitignored)
+└── projects.json          # project registry (gitignored)
 ```
 
 ## Requirements
