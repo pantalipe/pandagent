@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pandagent"
+version = "1.0.0"
+description = "Shared Ollama client and model routing for the PandaEcosystem"
+requires-python = ">=3.11"
+# Zero external dependencies — pure stdlib + Ollama HTTP API
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pandagent*"]
