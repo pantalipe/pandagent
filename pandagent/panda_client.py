@@ -1,7 +1,9 @@
 """
-panda_client.py — Shared Ollama client for the PandaEcosystem
+panda_client.py — Shared LLM client for the PandaEcosystem
 
-Single point of contact with Ollama.
+Single point of contact with any OpenAI-compatible inference server
+(llama-swap, llama.cpp llama-server, LM Studio, etc.).
+
 Import this module from any project after installing pandagent:
 
     pip install -e C:/Users/panta/pandagent
@@ -23,7 +25,8 @@ import urllib.request
 # -------------------------------------------------
 # DEFAULTS
 # -------------------------------------------------
-OLLAMA_BASE_URL    = "http://localhost:11434"
+LLM_BASE_URL       = "http://localhost:8080"   # llama-swap / llama-server default
+OLLAMA_BASE_URL    = LLM_BASE_URL              # backward-compat alias
 DEFAULT_TEXT_MODEL = "phi3"
 DEFAULT_CODE_MODEL = "deepseek-coder:6.7b-instruct-q4_K_M"
 
@@ -82,7 +85,10 @@ _COMMIT_LEAK_MARKERS = [
 
 class PandaClient:
     """
-    Lightweight Ollama client with model routing.
+    Lightweight OpenAI-compatible LLM client with model routing.
+
+    Works with any server that exposes the /v1/chat/completions endpoint:
+    llama-swap, llama.cpp llama-server, LM Studio, etc.
 
     Parameters
     ----------
@@ -91,40 +97,41 @@ class PandaClient:
     code_model : str
         Model used for code generation and debugging (default: deepseek-coder).
     base_url : str
-        Ollama base URL (default: http://localhost:11434).
+        LLM server base URL (default: http://localhost:8080).
     """
 
     def __init__(
         self,
         text_model: str = DEFAULT_TEXT_MODEL,
         code_model: str = DEFAULT_CODE_MODEL,
-        base_url: str = OLLAMA_BASE_URL,
+        base_url: str = LLM_BASE_URL,
     ):
-        self.text_model = text_model
-        self.code_model = code_model
-        self._generate_url = f"{base_url}/api/generate"
-        self._tags_url     = f"{base_url}/api/tags"
+        self.text_model  = text_model
+        self.code_model  = code_model
+        self._chat_url   = f"{base_url}/v1/chat/completions"
+        self._models_url = f"{base_url}/v1/models"
 
     # -------------------------------------------------
     # PUBLIC API
     # -------------------------------------------------
 
     def is_online(self) -> bool:
-        """Returns True if Ollama is reachable."""
+        """Returns True if the LLM server is reachable."""
         try:
-            req = urllib.request.Request(self._tags_url, method="GET")
+            req = urllib.request.Request(self._models_url, method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 return resp.status == 200
         except Exception:
             return False
 
     def available_models(self) -> list[str]:
-        """Returns list of models currently installed in Ollama."""
+        """Returns list of models currently available on the LLM server."""
         try:
-            req = urllib.request.Request(self._tags_url, method="GET")
+            req = urllib.request.Request(self._models_url, method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                return [m["name"] for m in data.get("models", [])]
+                # OpenAI format: {"data": [{"id": "model-name", ...}, ...]}
+                return [m["id"] for m in data.get("data", [])]
         except Exception:
             return []
 
@@ -139,7 +146,7 @@ class PandaClient:
         stream: bool = False,
     ) -> dict:
         """
-        Send a prompt to Ollama and return the response.
+        Send a prompt to the LLM server and return the response.
 
         Parameters
         ----------
@@ -150,10 +157,10 @@ class PandaClient:
             "text"  -> force text/planning model (phi3)
             "code"  -> force code model (deepseek-coder)
         system : str
-            Optional system prompt injected before the user prompt.
+            Optional system prompt prepended as a system message.
         context : str
-            Optional extra context appended after the system prompt and before
-            the user prompt (e.g. git diff, file contents, project description).
+            Optional extra context appended to the user message before
+            the actual prompt (e.g. git diff, file contents, project description).
         temperature : float | None
             Override temperature. Defaults: 0.5 for text, 0.2 for code.
         max_tokens : int
@@ -176,32 +183,36 @@ class PandaClient:
         if temperature is None:
             temperature = 0.2 if resolved_task == "code" else 0.5
 
-        full_prompt = self._build_prompt(prompt, system, context)
+        messages = self._build_messages(prompt, system, context)
 
         payload = {
-            "model":  model,
-            "prompt": full_prompt,
-            "stream": stream,
-            "options": {
-                "temperature": temperature,
-                "top_p":       0.9,
-                "num_predict": max_tokens,
-            },
+            "model":       model,
+            "messages":    messages,
+            "stream":      stream,
+            "temperature": temperature,
+            "top_p":       0.9,
+            "max_tokens":  max_tokens,
         }
 
         try:
             data = json.dumps(payload).encode("utf-8")
             req = urllib.request.Request(
-                self._generate_url,
+                self._chat_url,
                 data=data,
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=None) as resp:
                 result   = json.loads(resp.read().decode("utf-8"))
-                response = result.get("response", "").strip()
+                response = (
+                    result
+                    .get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                    or ""
+                ).strip()
                 if not response:
-                    return self._err("Ollama returned an empty response.", model, resolved_task)
+                    return self._err("LLM server returned an empty response.", model, resolved_task)
                 return {"ok": True, "output": response, "model": model, "task": resolved_task}
 
         except urllib.error.HTTPError as e:
@@ -210,9 +221,9 @@ class PandaClient:
                 detail = e.read().decode("utf-8")
             except Exception:
                 pass
-            return self._err(f"Ollama HTTP {e.code}: {e.reason}. {detail}".strip(), model, resolved_task)
+            return self._err(f"LLM HTTP {e.code}: {e.reason}. {detail}".strip(), model, resolved_task)
         except urllib.error.URLError as e:
-            return self._err(f"Ollama not reachable: {e.reason}", model, resolved_task)
+            return self._err(f"LLM server not reachable: {e.reason}", model, resolved_task)
         except Exception as e:
             return self._err(f"Unexpected error: {e}", model, resolved_task)
 
@@ -506,14 +517,15 @@ class PandaClient:
             return self.code_model, "code"
         return self.text_model, "text"
 
-    def _build_prompt(self, prompt: str, system: str, context: str) -> str:
-        parts = []
+    @staticmethod
+    def _build_messages(prompt: str, system: str, context: str) -> list[dict]:
+        """Build an OpenAI-compatible messages array."""
+        messages = []
         if system.strip():
-            parts.append(system.strip())
-        if context.strip():
-            parts.append(context.strip())
-        parts.append(prompt.strip())
-        return "\n\n".join(parts)
+            messages.append({"role": "system", "content": system.strip()})
+        user_content = f"{context.strip()}\n\n{prompt.strip()}" if context.strip() else prompt.strip()
+        messages.append({"role": "user", "content": user_content})
+        return messages
 
     @staticmethod
     def _err(message: str, model: str, task: str) -> dict:
