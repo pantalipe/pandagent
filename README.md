@@ -1,58 +1,15 @@
 # pandagent
 
-Local AI development assistant powered by Ollama. Zero API costs, zero cloud dependency.
+Local LLM client package for the panda ecosystem. Zero API costs, zero cloud dependency.
 
 ## What it does
 
-A modular AI agent that runs entirely on your machine. It routes tasks between two local models — one for planning, one for code generation — and can execute actions directly on your filesystem based on the model's responses.
+`pandagent` is an installable Python package that exposes `PandaClient` — a shared
+inference client used by every LLM-powered project in the ecosystem. It routes tasks
+to the right local model, cleans model output, and provides consistent methods for
+commit messages, README generation, script generation, and Hardhat test generation.
 
-It also exposes `panda_client.py` — a shared Ollama client that any project in the ecosystem can import to access LLM functionality without duplicating Ollama call logic.
-
-## How it works
-
-```
-User input
-    ↓
-brain.py — routes to the right model
-    ↓
-Ollama (local LLM)
-    ↓
-executor.py — detects JSON actions and runs them
-    ↓
-memory.py — saves session history
-```
-
-## Model routing
-
-| Model | Role |
-|-------|------|
-| `phi3` | Planning, architecture, general questions |
-| `deepseek-coder:6.7b-instruct-q4_K_M` | Code generation, file creation, debugging |
-
-The router scores the user input against keyword lists and picks the most appropriate model automatically.
-
-## Actions
-
-When the model responds with a JSON action block, `executor.py` handles it:
-
-```json
-{ "action": "create_file", "path": "hello.py", "content": "print('hello')", "reason": "..." }
-{ "action": "run_command", "command": "pip install requests", "reason": "..." }
-{ "action": "read_file", "path": "main.py", "reason": "..." }
-```
-
-Commands matching the confirmation list (e.g. `git push`, `git reset`) require explicit approval before execution.
-
-## Project context
-
-Projects are registered in `projects.json`. When a project is selected at startup, the agent loads its path, stack and description into the system prompt — so the model already knows what it's working on before you type anything.
-
-The `indexer.py` module reads the codebase and builds a relevance-scored index. For each user message, it injects only the most relevant files into the prompt, staying within the model's context window.
-
-## panda_client — shared Ollama client
-
-`pandagent` is an installable package. Install it once in editable mode and any project
-in the ecosystem can import it directly — no `sys.path` hacks needed:
+Install it once and any project can import it:
 
 ```bash
 cd C:/Users/panta/pandagent
@@ -68,74 +25,88 @@ client.commit_message(diff=diff_text, status=status_text, project_name="gitmanag
 client.generate_readme(project_name="myproject", description="...", stack=["python"])
 client.generate_script(topic="What is Bitcoin halving?", channel="bitcoinfacil")
 client.generate_hardhat_test(function_source="function buyTokens() ...")
-client.is_online()          # True if Ollama is reachable
-client.available_models()   # list of installed model names
+client.is_online()          # True if LLM server is reachable
+client.available_models()   # list of model IDs reported by the server
 ```
 
-### Model routing (TASK_MODEL_MAP)
+## LLM server
+
+`PandaClient` targets any OpenAI-compatible server at `http://localhost:8080`.
+The ecosystem uses [llama-swap](https://github.com/mostlygeek/llama-swap) or
+llama-server as the inference backend.
+
+```
+LLM_BASE_URL = "http://localhost:8080"   # configurable via constructor
+OLLAMA_BASE_URL                          # backward-compat alias for the same URL
+```
+
+## Model routing (TASK_MODEL_MAP)
 
 Each task type is routed to the most appropriate local model:
 
 | Task key | Model | Used by |
 |---|---|---|
-| `commit` | `deepseek-coder` | gitmanager |
+| `commit` | `deepseek-coder:6.7b-instruct-q4_K_M` | gitmanager |
 | `code` | `phi3` | pp-testenv |
+| `readme` | `phi3` | gitmanager |
 | `script_bitcoinfacil` | `llama3.1:8b` | rotman |
 | `script_pandapoints` | `mistral:7b` | rotman |
+| `hardhat_test` | `deepseek-coder:6.7b-instruct-q4_K_M` | pp-testenv |
 
-Currently used by: **gitmanager** (commit suggestions, README generation), **rotman** (script generation per channel), and **pp-testenv** (Hardhat test generation).
+Model IDs must match the aliases registered in llama-swap's config.
+Run `client.available_models()` to verify what the server reports.
+
+## Output cleaners
+
+| Method | What it cleans |
+|---|---|
+| `_clean_commit(raw)` | Extracts the first conventional commit line, strips scope leaks, trims to 72 chars |
+| `_clean_markdown_fences(text)` | Strips ` ```markdown ` fences and leading `markdown\n` artifacts from model output |
+
+## Currently used by
+
+| Project | Methods used |
+|---|---|
+| **gitmanager** | `commit_message()`, `generate_readme()`, `available_models()` |
+| **rotman** | `generate_script(channel=)`, `TASK_MODEL_MAP` |
+| **pp-testenv** | `generate_hardhat_test(function_source=)`, `is_online()`, `available_models()` |
+| **ollama-bench** | `TASK_MODEL_MAP` (for default model list) |
 
 ## Structure
 
 ```
 pandagent/
-├── agent.py               # entry point — orchestrates everything
-├── brain.py               # model routing + Ollama calls
-├── executor.py            # action parser + system execution
-├── indexer.py             # codebase reader + relevance search
-├── memory.py              # session history + persistent log
-├── panda_client.py        # backward-compat shim → re-exports from pandagent package
-├── pyproject.toml         # package definition for pip install -e .
 ├── pandagent/
 │   ├── __init__.py        # exports PandaClient and TASK_MODEL_MAP
-│   └── panda_client.py    # full implementation of the shared Ollama client
-├── memory.txt             # conversation log (auto-generated, gitignored)
-└── projects.json          # project registry (gitignored)
+│   └── panda_client.py    # full implementation
+├── panda_client.py        # backward-compat shim — re-exports from pandagent package
+├── bench_runner.py        # ollama-bench integration helper
+├── pyproject.toml         # package metadata for pip install -e .
+├── test_openai_migration.py  # 27-check smoke test for the OpenAI endpoint migration
+├── projects.json          # project registry (gitignored)
+└── README.md
 ```
 
 ## Requirements
 
-No external dependencies. Uses Python standard library only.
+Python 3.10+. No external dependencies — uses stdlib `urllib` only.
 
-[Ollama](https://ollama.com) must be running with at least one model pulled:
-
-```bash
-ollama serve
-ollama pull phi3
-ollama pull deepseek-coder:6.7b-instruct-q4_K_M
-```
-
-## Usage
+An OpenAI-compatible LLM server must be running on port 8080 before making inference calls:
 
 ```bash
-python agent.py
+# llama-swap example
+llama-swap --config llama-swap.yaml
+
+# llama-server example
+llama-server --model phi3.gguf --port 8080
 ```
 
-Select a project from the menu or choose general mode. Type `index` to index the selected project before asking code-related questions.
+## Running the migration test
 
-## Special commands
+```bash
+python test_openai_migration.py
+```
 
-| Command | Action |
-|---------|--------|
-| `index` | Index the current project |
-| `summarize` | Explain what the project does (requires `index`) |
-| `map` | Show the project file map |
-| `switch` | Switch to another project |
-| `history` | Show conversation log |
-| `clear` | Clear session history |
-| `clear_log` | Archive `memory.txt` with timestamp and start fresh |
-| `quit` | Exit |
-
-## Hardware
-
-Tested on 8GB RAM with CPU-only inference. Recommended: 16GB RAM for running both models without swap.
+Runs 27 checks across 5 sections: constants, URL construction, `_build_messages`,
+model routing, and live connectivity (sections 1–4 run without a server; section 5
+requires the server on `:8080`).
