@@ -27,23 +27,23 @@ import urllib.request
 # -------------------------------------------------
 LLM_BASE_URL       = "http://localhost:8080"   # llama-swap / llama-server default
 OLLAMA_BASE_URL    = LLM_BASE_URL              # backward-compat alias
-DEFAULT_TEXT_MODEL = "qwen3:8b"
-DEFAULT_CODE_MODEL = "qwen3:8b"
+DEFAULT_TEXT_MODEL = "qwen3:14b"
+DEFAULT_CODE_MODEL = "qwen3:14b"
 
 # -------------------------------------------------
 # TASK → MODEL ROUTING MAP
-# Derived from ollama-bench results (2026-05-22).
-# qwen3:8b ranked highest in quality across all categories.
+# Derived from ollama-bench results (2026-05-23).
+# qwen3:14b ranked highest in quality + consistency across all categories.
 # Keys match task/channel identifiers used across the ecosystem.
 # Override at runtime by passing model= to ask() directly.
 # -------------------------------------------------
 TASK_MODEL_MAP: dict[str, str] = {
-    "commit":              "qwen3:8b",
-    "code_python":         "qwen3:8b",
-    "code_solidity":       "qwen3:8b",
-    "readme":              "qwen3:8b",
-    "script_bitcoinfacil": "qwen3:8b",
-    "script_pandapoints":  "qwen3:8b",
+    "commit":              "qwen3:14b",
+    "code_python":         "qwen3:14b",
+    "code_solidity":       "qwen3:14b",
+    "readme":              "qwen3:14b",
+    "script_bitcoinfacil": "qwen3:14b",
+    "script_pandapoints":  "qwen3:14b",
 }
 
 # Keywords that signal a CODE task
@@ -284,7 +284,8 @@ class PandaClient:
             "no issue references (#), no metadata.\n"
             "3. The background info section is for context only -- "
             "do NOT reproduce any of it in the output.\n"
-            "4. Stop immediately after the commit subject line."
+            "4. Stop immediately after the commit subject line.\n"
+            "5. Keep the subject line under 72 characters total."
         )
 
         result = self.ask(
