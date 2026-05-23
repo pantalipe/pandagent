@@ -27,26 +27,23 @@ import urllib.request
 # -------------------------------------------------
 LLM_BASE_URL       = "http://localhost:8080"   # llama-swap / llama-server default
 OLLAMA_BASE_URL    = LLM_BASE_URL              # backward-compat alias
-DEFAULT_TEXT_MODEL = "phi3"
-DEFAULT_CODE_MODEL = "deepseek-coder:6.7b-instruct-q4_K_M"
+DEFAULT_TEXT_MODEL = "qwen3:8b"
+DEFAULT_CODE_MODEL = "qwen3:8b"
 
 # -------------------------------------------------
 # TASK → MODEL ROUTING MAP
-# Derived from ollama-bench results (2026-04-25).
+# Derived from ollama-bench results (2026-05-22).
+# qwen3:8b ranked highest in quality across all categories.
 # Keys match task/channel identifiers used across the ecosystem.
 # Override at runtime by passing model= to ask() directly.
 # -------------------------------------------------
 TASK_MODEL_MAP: dict[str, str] = {
-    # commit messages — deepseek is most consistent (0.67 on complex diff)
-    "commit":            "deepseek-coder:6.7b-instruct-q4_K_M",
-    # code generation — phi3 fastest + consistency 1.0 on Solidity
-    "code_python":       "phi3",
-    "code_solidity":     "phi3",
-    # README / generic text — phi3 fastest, quality acceptable
-    "readme":            "phi3",
-    # short-form video scripts by channel
-    "script_bitcoinfacil": "llama3.1:8b",   # pt-BR hooks — llama best quality
-    "script_pandapoints":  "mistral:7b",    # EN hooks  — mistral most consistent
+    "commit":              "qwen3:8b",
+    "code_python":         "qwen3:8b",
+    "code_solidity":       "qwen3:8b",
+    "readme":              "qwen3:8b",
+    "script_bitcoinfacil": "qwen3:8b",
+    "script_pandapoints":  "qwen3:8b",
 }
 
 # Keywords that signal a CODE task
