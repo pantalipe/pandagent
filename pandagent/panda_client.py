@@ -180,6 +180,10 @@ class PandaClient:
         if temperature is None:
             temperature = 0.2 if resolved_task == "code" else 0.5
 
+        # Qwen3 thinking mode: disable chain-of-thought for all production tasks
+        if "qwen3" in model.lower():
+            system = "/no_think\n" + system if system.strip() else "/no_think"
+
         messages = self._build_messages(prompt, system, context)
 
         payload = {
