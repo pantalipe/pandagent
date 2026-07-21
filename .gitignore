@@ -1,6 +1,12 @@
 # Project registry — contains local paths, keep private
 projects.json
 
+# Environment variables
+.env
+.env.local
+.env.production
+# .env.example is intentionally NOT ignored — it is committed as documentation
+
 # Python
 venv/
 __pycache__/
