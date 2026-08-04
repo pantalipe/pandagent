@@ -44,6 +44,10 @@ TASK_MODEL_MAP: dict[str, str] = {
     "readme":              "qwen3:14b",
     "script_bitcoinfacil": "qwen3:14b",
     "script_pandapoints":  "qwen3:14b",
+    "seo_bitcoinfacil":    "qwen3:14b",
+    "seo_pandapoints":     "qwen3:14b",
+    "seo_biblia":          "qwen3:14b",
+    "seo_general":         "qwen3:14b",
 }
 
 # Keywords that signal a CODE task
