@@ -1,7 +1,7 @@
 """
 test_openai_migration.py — Manual smoke tests for the OpenAI-compatible panda_client
 
-Run with any OpenAI-compatible server on localhost:8080:
+Run with any OpenAI-compatible server on localhost:8081:
     python test_openai_migration.py
 
 Each test prints PASS / FAIL / SKIP clearly.
@@ -43,7 +43,7 @@ def skip(name, reason=""):
 # ─────────────────────────────────────────────
 print("\n[1] Constants & backward compat")
 
-check("LLM_BASE_URL defined",          LLM_BASE_URL == "http://localhost:8080")
+check("LLM_BASE_URL defined",          LLM_BASE_URL == "http://localhost:8081")
 check("OLLAMA_BASE_URL is alias",       OLLAMA_BASE_URL == LLM_BASE_URL)
 check("TASK_MODEL_MAP has 6 keys",      len(TASK_MODEL_MAP) == 6)
 check("shim re-exports LLM_BASE_URL",   True)   # already imported above without error
@@ -56,9 +56,9 @@ print("\n[2] Instantiation & URL construction")
 
 client = PandaClient()
 check("_chat_url points to /v1/chat/completions",
-      client._chat_url == "http://localhost:8080/v1/chat/completions")
+      client._chat_url == "http://localhost:8081/v1/chat/completions")
 check("_models_url points to /v1/models",
-      client._models_url == "http://localhost:8080/v1/models")
+      client._models_url == "http://localhost:8081/v1/models")
 
 custom = PandaClient(base_url="http://127.0.0.1:9999")
 check("custom base_url respected",
@@ -108,11 +108,11 @@ check("auto with no code kws → text",  task == "text",
 # ─────────────────────────────────────────────
 # 5. CONNECTIVITY (requires server running)
 # ─────────────────────────────────────────────
-print("\n[5] Connectivity (requires LLM server on :8080)")
+print("\n[5] Connectivity (requires LLM server on :8081)")
 
 online = client.is_online()
 if not online:
-    skip("is_online()", "server not running — start llama-swap or llama-server on :8080")
+    skip("is_online()", "server not running — start llama-swap or llama-server on :8081")
     skip("available_models()", "server not running")
     skip("ask() smoke test", "server not running")
     skip("commit_message() smoke test", "server not running")

@@ -18,6 +18,7 @@ Usage:
 """
 
 import json
+import os
 import re
 import urllib.error
 import urllib.request
@@ -25,7 +26,7 @@ import urllib.request
 # -------------------------------------------------
 # DEFAULTS
 # -------------------------------------------------
-LLM_BASE_URL       = "http://localhost:8080"   # llama-swap / llama-server default
+LLM_BASE_URL       = os.environ.get("LLM_BASE_URL", "http://localhost:8081")   # llama-swap / llama-server
 OLLAMA_BASE_URL    = LLM_BASE_URL              # backward-compat alias
 DEFAULT_TEXT_MODEL = "qwen3:14b"
 DEFAULT_CODE_MODEL = "qwen3:14b"
@@ -98,7 +99,8 @@ class PandaClient:
     code_model : str
         Model used for code generation and debugging (default: deepseek-coder).
     base_url : str
-        LLM server base URL (default: http://localhost:8080).
+        LLM server base URL (default: http://localhost:8081, overridable via
+        the LLM_BASE_URL env var).
     """
 
     def __init__(

@@ -31,12 +31,12 @@ client.available_models()   # list of model IDs reported by the server
 
 ## LLM server
 
-`PandaClient` targets any OpenAI-compatible server at `http://localhost:8080`.
-The ecosystem uses [llama-swap](https://github.com/mostlygeek/llama-swap) or
-llama-server as the inference backend.
+`PandaClient` targets any OpenAI-compatible server, defaulting to
+`http://localhost:8081`. The ecosystem uses [llama-swap](https://github.com/mostlygeek/llama-swap)
+or llama-server as the inference backend.
 
 ```
-LLM_BASE_URL = "http://localhost:8080"   # configurable via constructor
+LLM_BASE_URL = "http://localhost:8081"   # overridable via LLM_BASE_URL env var or constructor
 OLLAMA_BASE_URL                          # backward-compat alias for the same URL
 ```
 
@@ -91,14 +91,14 @@ pandagent/
 
 Python 3.10+. No external dependencies — uses stdlib `urllib` only.
 
-An OpenAI-compatible LLM server must be running on port 8080 before making inference calls:
+An OpenAI-compatible LLM server must be running on port 8081 before making inference calls:
 
 ```bash
 # llama-swap example
 llama-swap --config llama-swap.yaml
 
 # llama-server example
-llama-server --model phi3.gguf --port 8080
+llama-server --model phi3.gguf --port 8081
 ```
 
 ## Running the migration test
@@ -109,4 +109,4 @@ python test_openai_migration.py
 
 Runs 27 checks across 5 sections: constants, URL construction, `_build_messages`,
 model routing, and live connectivity (sections 1–4 run without a server; section 5
-requires the server on `:8080`).
+requires the server on `:8081`).
