@@ -28,27 +28,28 @@ import urllib.request
 # -------------------------------------------------
 LLM_BASE_URL       = os.environ.get("LLM_BASE_URL", "http://localhost:8081")   # llama-swap / llama-server
 OLLAMA_BASE_URL    = LLM_BASE_URL              # backward-compat alias
-DEFAULT_TEXT_MODEL = "qwen3:14b"
-DEFAULT_CODE_MODEL = "qwen3:14b"
+DEFAULT_TEXT_MODEL = "qwen3:4b"
+DEFAULT_CODE_MODEL = "qwen3:4b"
 
 # -------------------------------------------------
 # TASK → MODEL ROUTING MAP
-# Derived from ollama-bench results (2026-05-23).
-# qwen3:14b ranked highest in quality + consistency across all categories.
+# All tasks routed to qwen3:4b since 2026-09-21: qwen3:14b (top of the
+# ollama-bench results, 2026-05-23) was removed from disk because its
+# response time on this CPU made it impractical.
 # Keys match task/channel identifiers used across the ecosystem.
 # Override at runtime by passing model= to ask() directly.
 # -------------------------------------------------
 TASK_MODEL_MAP: dict[str, str] = {
-    "commit":              "qwen3:14b",
-    "code_python":         "qwen3:14b",
-    "code_solidity":       "qwen3:14b",
-    "readme":              "qwen3:14b",
-    "script_bitcoinfacil": "qwen3:14b",
-    "script_pandapoints":  "qwen3:14b",
-    "seo_bitcoinfacil":    "qwen3:14b",
-    "seo_pandapoints":     "qwen3:14b",
-    "seo_biblia":          "qwen3:14b",
-    "seo_general":         "qwen3:14b",
+    "commit":              "qwen3:4b",
+    "code_python":         "qwen3:4b",
+    "code_solidity":       "qwen3:4b",
+    "readme":              "qwen3:4b",
+    "script_bitcoinfacil": "qwen3:4b",
+    "script_pandapoints":  "qwen3:4b",
+    "seo_bitcoinfacil":    "qwen3:4b",
+    "seo_pandapoints":     "qwen3:4b",
+    "seo_biblia":          "qwen3:4b",
+    "seo_general":         "qwen3:4b",
 }
 
 # Keywords that signal a CODE task
